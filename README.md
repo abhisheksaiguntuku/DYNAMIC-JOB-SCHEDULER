@@ -75,10 +75,10 @@ python -m app.experiments.stage10_runner
 
 ## 4. Recommended Free-Tier Cloud Deployment & Known Limitations
 
-- **Recommended Architecture (\$0/month, No Credit Card Required):**
-  - **Backend API:** **Hugging Face Spaces (`cpu-basic`, Docker SDK)** — provides **2 vCPUs, 16 GB RAM, 50 GB ephemeral disk**, and a **48-hour inactivity timeout** (compared to Render Free's 512 MB RAM and 15-minute spin-down), effortlessly accommodating our measured **`401.62 MB` peak RSS** footprint and keeping the container warm throughout a scheduled faculty demonstration day.
-  - **Frontend SPA:** **Cloudflare Pages (Free Plan)** — global CDN with unlimited static bandwidth/requests connected via `VITE_API_BASE_URL=https://<username>-<space-name>.hf.space/api`.
-- **Ephemeral SQLite on Free Container Hosting:** Free container instances use ephemeral storage across container restarts or 48-hour idle sleep cycles. Whenever the container boots or **Reset Demo** (`POST /api/data/reset-demo`) is clicked, `startup_event()` automatically seeds the verified 10-job, 10-machine industrial dataset (`backend/data/initial_jobs.json`, `backend/data/initial_machines.json`).
+- **Recommended Architecture (\$0/month, No Paid Subscription Required):**
+  - **Backend API:** **Render Free Web Service** (`512 MB` RAM, `0.1` CPU, `750` hrs/month, no credit card required) or **Koyeb Free Tier** (`512 MB` RAM, `0.1` vCPU, `1-hour` inactivity timeout). Because `backend/requirements.txt` uses CPU-only PyTorch (`--extra-index-url https://download.pytorch.org/whl/cpu`), our measured **`372.93 MB` steady / `401.62 MB` peak RSS** fits within the `512 MB` RAM limit with all 7 algorithms (`FCFS`, `SPT`, `EDD`, `CR`, `AGING`, `CPSAT`, `EPN`) intact.
+  - **Frontend SPA:** **Cloudflare Pages (Free Plan)** — global CDN with unlimited static bandwidth/requests connected via `VITE_API_BASE_URL=https://<your-backend-url>/api`.
+- **Ephemeral SQLite & Cold-Start Warm-Up on Free Hosting:** Free container instances use ephemeral storage across container restarts/spin-downs and sleep after inactivity (`15m` on Render Free, `60m` on Koyeb Free). Open `/api/health` **3 minutes before** a live faculty demo to pre-warm the container. Whenever the container boots or **Reset Demo** (`POST /api/data/reset-demo`) is clicked, `startup_event()` automatically seeds the verified 10-job, 10-machine industrial dataset (`backend/data/initial_jobs.json`, `backend/data/initial_machines.json`).
 - **CP-SAT Time Budget:** Online API calls cap CP-SAT at `2.0s–3.0s` (`num_search_workers = 4`), returning proven `OPTIMAL` schedules on small instances and high-quality time-bounded `FEASIBLE` schedules on contended 10–25 job instances.
 
 ---

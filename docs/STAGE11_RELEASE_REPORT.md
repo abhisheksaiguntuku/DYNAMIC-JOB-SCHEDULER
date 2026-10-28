@@ -66,10 +66,13 @@
 
 ## 3. Phase C & D: Free-Tier Hosting Selection & Implementation
 
-### Why Hugging Face Spaces (`cpu-basic`, Docker SDK) + Cloudflare Pages Was Selected Over Render Free
-1. **Eliminates the 15-Minute Demo Sleep Problem:** Render Free spins down after **15 minutes** of inactivity and takes **30–60 seconds** on `0.1` shared CPU to cold-start. Hugging Face Spaces (`cpu-basic`) stays awake for **48 hours** of inactivity—warming the Space once the morning of a faculty demonstration guarantees **0 ms cold-start latency** during the live presentation.
-2. **Eliminates 512 MB RAM OOM Risk:** Our measured peak RSS is **`401.62 MB`**, which consumes `78.4%` of a `512 MB` container (Render Free / Koyeb Free). Hugging Face Spaces `cpu-basic` provides **16 GB RAM** and **2 vCPUs** for **$0/month**, leaving >`15.5 GB` of headroom.
-3. **Zero Credit-Card or Billing Overage Risk:** Unlike Google Cloud Run (which requires an active Cloud Billing Account with a payment card and bills overages if free quotas are exceeded), both Hugging Face Spaces (`cpu-basic`) and Cloudflare Pages (Free) require **no credit card** and have **$0 overage risk**.
+### Why Render Free / Koyeb Free + Cloudflare Pages Was Selected
+1. **Hugging Face Spaces Docker/Gradio Disqualified for Non-PRO Accounts:** Hugging Face now gates `Docker` SDK and standard CPU `Gradio` Spaces behind paid **PRO** subscriptions for non-grandfathered accounts. Per strict project policy ($0 cost, no paid subscriptions), Hugging Face Spaces was immediately ruled out.
+2. **Genuinely Free, No-Subscription Backend Options (`Render Free` & `Koyeb Free`):**
+   - **Render Free Web Service** (`512 MB` RAM, `0.1` CPU, `750` hrs/mo, no credit card required) and **Koyeb Free Tier** (`512 MB` RAM, `0.1` vCPU, `2 GB` SSD, `1-hour` inactivity timeout vs. Render's `15-minute` timeout) are both genuinely free ($0/month) without a paid subscription.
+   - **Verified Memory Fit (`401.62 MB` Peak RSS < `512 MB` Cap):** Because `backend/requirements.txt` pins CPU-only PyTorch (`--extra-index-url https://download.pytorch.org/whl/cpu`), startup RSS is only `~185–200 MB`, and after loading `epn_model.pth` (`368 KB`) and running both `EPN` and `CP-SAT`, steady RSS is **`372.93 MB`** (`401.62 MB` peak)—fitting inside `512 MB` with `~110 MB` headroom.
+   - **Demo Warm-Up Protocol:** Opening `/api/health` **3 minutes before** a scheduled faculty demo warms the container so there is zero cold-start lag during the live presentation.
+3. **Zero Credit-Card or Billing Overage Risk:** Unlike Google Cloud Run (which requires an active Cloud Billing Account and payment card), Render Free + Cloudflare Pages requires no payment card and carries $0 overage risk.
 
 ### Release Files Added/Updated on `stage11-release-deployment`
 - [`Dockerfile`](file:///c:/Users/SUNITA/.gemini/antigravity/scratch/dynamic_job_shop_scheduler/Dockerfile) & [`.dockerignore`](file:///c:/Users/SUNITA/.gemini/antigravity/scratch/dynamic_job_shop_scheduler/.dockerignore): Root Docker configuration for Hugging Face Spaces (`cpu-basic`, port `7860`, non-root UID `1000`, preserving `/home/user/app/backend` layout so `epn_scheduler.py` resolves `epn_model.pth` without modifying research code).
