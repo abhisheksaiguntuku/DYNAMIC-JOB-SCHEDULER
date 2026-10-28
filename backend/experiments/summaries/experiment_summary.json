@@ -1,0 +1,86 @@
+[
+  {
+    "algorithm": "AGING",
+    "makespan_mean": 679.63,
+    "makespan_std": 83.31,
+    "total_tardiness_mean": 3186.33,
+    "total_tardiness_std": 630.55,
+    "late_jobs_count_mean": 7.93,
+    "avg_waiting_time_mean": 427.22,
+    "avg_waiting_time_std": 79.66,
+    "avg_utilization_mean": 13.3,
+    "latency_ms_mean": 2.18
+  },
+  {
+    "algorithm": "CPSAT",
+    "makespan_mean": 196.64,
+    "makespan_std": 26.85,
+    "total_tardiness_mean": 101.81,
+    "total_tardiness_std": 79.47,
+    "late_jobs_count_mean": 4.13,
+    "avg_waiting_time_mean": 35.02,
+    "avg_waiting_time_std": 9.38,
+    "avg_utilization_mean": 46.07,
+    "latency_ms_mean": 1481.97
+  },
+  {
+    "algorithm": "CR",
+    "makespan_mean": 660.19,
+    "makespan_std": 116.31,
+    "total_tardiness_mean": 2325.53,
+    "total_tardiness_std": 451.98,
+    "late_jobs_count_mean": 8.0,
+    "avg_waiting_time_mean": 319.68,
+    "avg_waiting_time_std": 60.82,
+    "avg_utilization_mean": 13.85,
+    "latency_ms_mean": 1.75
+  },
+  {
+    "algorithm": "EDD",
+    "makespan_mean": 562.38,
+    "makespan_std": 90.32,
+    "total_tardiness_mean": 1299.21,
+    "total_tardiness_std": 359.44,
+    "late_jobs_count_mean": 6.67,
+    "avg_waiting_time_mean": 188.33,
+    "avg_waiting_time_std": 45.44,
+    "avg_utilization_mean": 16.24,
+    "latency_ms_mean": 1.6
+  },
+  {
+    "algorithm": "EPN",
+    "makespan_mean": 381.77,
+    "makespan_std": 67.72,
+    "total_tardiness_mean": 756.33,
+    "total_tardiness_std": 282.0,
+    "late_jobs_count_mean": 6.8,
+    "avg_waiting_time_mean": 120.67,
+    "avg_waiting_time_std": 35.18,
+    "avg_utilization_mean": 24.01,
+    "latency_ms_mean": 2.0
+  },
+  {
+    "algorithm": "FCFS",
+    "makespan_mean": 507.2,
+    "makespan_std": 112.96,
+    "total_tardiness_mean": 1309.61,
+    "total_tardiness_std": 410.49,
+    "late_jobs_count_mean": 6.4,
+    "avg_waiting_time_mean": 188.82,
+    "avg_waiting_time_std": 52.04,
+    "avg_utilization_mean": 18.29,
+    "latency_ms_mean": 1.69
+  },
+  {
+    "algorithm": "SPT",
+    "makespan_mean": 381.77,
+    "makespan_std": 67.72,
+    "total_tardiness_mean": 756.33,
+    "total_tardiness_std": 282.0,
+    "late_jobs_count_mean": 6.8,
+    "avg_waiting_time_mean": 120.67,
+    "avg_waiting_time_std": 35.18,
+    "avg_utilization_mean": 24.01,
+    "latency_ms_mean": 1.81
+  }
+]

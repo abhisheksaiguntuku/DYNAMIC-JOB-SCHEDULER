@@ -1,0 +1,12 @@
+[
+  {"machine_id": "M1", "name": "Pattern Making", "capability": "Pattern Making", "status": "IDLE"},
+  {"machine_id": "M2", "name": "Mould Making", "capability": "Mould Making", "status": "IDLE"},
+  {"machine_id": "M3", "name": "Casting (Foundry)", "capability": "Casting", "status": "IDLE"},
+  {"machine_id": "M4", "name": "Heat Treatment Furnace", "capability": "Heat Treatment", "status": "IDLE"},
+  {"machine_id": "M5", "name": "Machining Center", "capability": "Machining", "status": "IDLE"},
+  {"machine_id": "M6", "name": "Pattern & Core Prep Aux", "capability": "Pattern Making", "status": "IDLE"},
+  {"machine_id": "M7", "name": "Mould Assembly & Dry Aux", "capability": "Mould Making", "status": "IDLE"},
+  {"machine_id": "M8", "name": "Pouring & Casting Aux", "capability": "Casting", "status": "IDLE"},
+  {"machine_id": "M9", "name": "Annealing & Tempering Aux", "capability": "Heat Treatment", "status": "IDLE"},
+  {"machine_id": "M10", "name": "CNC Finishing & Quality Aux", "capability": "Machining", "status": "IDLE"}
+]

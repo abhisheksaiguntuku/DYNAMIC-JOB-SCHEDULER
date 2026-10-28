@@ -1,0 +1,162 @@
+[
+  {
+    "job_id": "JOB_001",
+    "name": "Truck Frame",
+    "product_type": "Chassis Component",
+    "quantity": 1,
+    "arrival_time": 0.0,
+    "due_date": 240.0,
+    "priority": 3,
+    "operations": [
+      {"sequence": 1, "name": "Pattern Making", "machine_id": "M1", "duration": 28.0, "setup_time": 4.0},
+      {"sequence": 2, "name": "Mould Making", "machine_id": "M2", "duration": 34.0, "setup_time": 5.0},
+      {"sequence": 3, "name": "Casting", "machine_id": "M3", "duration": 45.0, "setup_time": 6.0},
+      {"sequence": 4, "name": "Heat Treatment", "machine_id": "M4", "duration": 30.0, "setup_time": 5.0},
+      {"sequence": 5, "name": "Machining", "machine_id": "M5", "duration": 22.0, "setup_time": 3.0}
+    ]
+  },
+  {
+    "job_id": "JOB_002",
+    "name": "NREC Axle",
+    "product_type": "Axle Component",
+    "quantity": 1,
+    "arrival_time": 0.0,
+    "due_date": 210.0,
+    "priority": 2,
+    "operations": [
+      {"sequence": 1, "name": "Pattern Making", "machine_id": "M1", "duration": 22.0, "setup_time": 3.0},
+      {"sequence": 2, "name": "Mould Making", "machine_id": "M2", "duration": 25.0, "setup_time": 4.0},
+      {"sequence": 3, "name": "Casting", "machine_id": "M3", "duration": 38.0, "setup_time": 5.0},
+      {"sequence": 4, "name": "Heat Treatment", "machine_id": "M4", "duration": 28.0, "setup_time": 4.0},
+      {"sequence": 5, "name": "Machining", "machine_id": "M5", "duration": 18.0, "setup_time": 2.0}
+    ]
+  },
+  {
+    "job_id": "JOB_003",
+    "name": "Coco Bogie",
+    "product_type": "Railway Bogie",
+    "quantity": 1,
+    "arrival_time": 5.0,
+    "due_date": 280.0,
+    "priority": 4,
+    "operations": [
+      {"sequence": 1, "name": "Pattern Making", "machine_id": "M1", "duration": 35.0, "setup_time": 5.0},
+      {"sequence": 2, "name": "Mould Making", "machine_id": "M2", "duration": 40.0, "setup_time": 6.0},
+      {"sequence": 3, "name": "Casting", "machine_id": "M3", "duration": 50.0, "setup_time": 8.0},
+      {"sequence": 4, "name": "Heat Treatment", "machine_id": "M4", "duration": 35.0, "setup_time": 5.0},
+      {"sequence": 5, "name": "Machining", "machine_id": "M5", "duration": 30.0, "setup_time": 4.0}
+    ]
+  },
+  {
+    "job_id": "JOB_004",
+    "name": "Coupler",
+    "product_type": "Coupling Mechanism",
+    "quantity": 2,
+    "arrival_time": 10.0,
+    "due_date": 160.0,
+    "priority": 5,
+    "operations": [
+      {"sequence": 1, "name": "Pattern Making", "machine_id": "M1", "duration": 15.0, "setup_time": 2.0},
+      {"sequence": 2, "name": "Mould Making", "machine_id": "M2", "duration": 18.0, "setup_time": 3.0},
+      {"sequence": 3, "name": "Casting", "machine_id": "M3", "duration": 25.0, "setup_time": 4.0},
+      {"sequence": 4, "name": "Heat Treatment", "machine_id": "M4", "duration": 20.0, "setup_time": 3.0},
+      {"sequence": 5, "name": "Machining", "machine_id": "M5", "duration": 15.0, "setup_time": 2.0}
+    ]
+  },
+  {
+    "job_id": "JOB_005",
+    "name": "Yoke",
+    "product_type": "Draft Gear Component",
+    "quantity": 1,
+    "arrival_time": 15.0,
+    "due_date": 180.0,
+    "priority": 3,
+    "operations": [
+      {"sequence": 1, "name": "Pattern Making", "machine_id": "M1", "duration": 18.0, "setup_time": 2.0},
+      {"sequence": 2, "name": "Mould Making", "machine_id": "M2", "duration": 20.0, "setup_time": 3.0},
+      {"sequence": 3, "name": "Casting", "machine_id": "M3", "duration": 28.0, "setup_time": 4.0},
+      {"sequence": 4, "name": "Heat Treatment", "machine_id": "M4", "duration": 22.0, "setup_time": 3.0},
+      {"sequence": 5, "name": "Machining", "machine_id": "M5", "duration": 16.0, "setup_time": 2.0}
+    ]
+  },
+  {
+    "job_id": "JOB_006",
+    "name": "Knuckle",
+    "product_type": "Coupler Subassembly",
+    "quantity": 2,
+    "arrival_time": 20.0,
+    "due_date": 150.0,
+    "priority": 4,
+    "operations": [
+      {"sequence": 1, "name": "Pattern Making", "machine_id": "M1", "duration": 12.0, "setup_time": 2.0},
+      {"sequence": 2, "name": "Mould Making", "machine_id": "M2", "duration": 14.0, "setup_time": 2.0},
+      {"sequence": 3, "name": "Casting", "machine_id": "M3", "duration": 20.0, "setup_time": 3.0},
+      {"sequence": 4, "name": "Heat Treatment", "machine_id": "M4", "duration": 18.0, "setup_time": 2.0},
+      {"sequence": 5, "name": "Machining", "machine_id": "M5", "duration": 14.0, "setup_time": 2.0}
+    ]
+  },
+  {
+    "job_id": "JOB_007",
+    "name": "Striker",
+    "product_type": "Buffer Casting",
+    "quantity": 1,
+    "arrival_time": 25.0,
+    "due_date": 190.0,
+    "priority": 2,
+    "operations": [
+      {"sequence": 1, "name": "Pattern Making", "machine_id": "M1", "duration": 20.0, "setup_time": 3.0},
+      {"sequence": 2, "name": "Mould Making", "machine_id": "M2", "duration": 22.0, "setup_time": 3.0},
+      {"sequence": 3, "name": "Casting", "machine_id": "M3", "duration": 30.0, "setup_time": 4.0},
+      {"sequence": 4, "name": "Heat Treatment", "machine_id": "M4", "duration": 24.0, "setup_time": 3.0},
+      {"sequence": 5, "name": "Machining", "machine_id": "M5", "duration": 18.0, "setup_time": 2.0}
+    ]
+  },
+  {
+    "job_id": "JOB_008",
+    "name": "Side Frame",
+    "product_type": "Bogie Frame Component",
+    "quantity": 1,
+    "arrival_time": 30.0,
+    "due_date": 260.0,
+    "priority": 3,
+    "operations": [
+      {"sequence": 1, "name": "Pattern Making", "machine_id": "M1", "duration": 30.0, "setup_time": 4.0},
+      {"sequence": 2, "name": "Mould Making", "machine_id": "M2", "duration": 32.0, "setup_time": 5.0},
+      {"sequence": 3, "name": "Casting", "machine_id": "M3", "duration": 42.0, "setup_time": 6.0},
+      {"sequence": 4, "name": "Heat Treatment", "machine_id": "M4", "duration": 30.0, "setup_time": 4.0},
+      {"sequence": 5, "name": "Machining", "machine_id": "M5", "duration": 24.0, "setup_time": 3.0}
+    ]
+  },
+  {
+    "job_id": "JOB_009",
+    "name": "Bogie Bolster",
+    "product_type": "Structural Cross-member",
+    "quantity": 1,
+    "arrival_time": 35.0,
+    "due_date": 270.0,
+    "priority": 4,
+    "operations": [
+      {"sequence": 1, "name": "Pattern Making", "machine_id": "M1", "duration": 32.0, "setup_time": 4.0},
+      {"sequence": 2, "name": "Mould Making", "machine_id": "M2", "duration": 36.0, "setup_time": 5.0},
+      {"sequence": 3, "name": "Casting", "machine_id": "M3", "duration": 46.0, "setup_time": 6.0},
+      {"sequence": 4, "name": "Heat Treatment", "machine_id": "M4", "duration": 32.0, "setup_time": 5.0},
+      {"sequence": 5, "name": "Machining", "machine_id": "M5", "duration": 26.0, "setup_time": 4.0}
+    ]
+  },
+  {
+    "job_id": "JOB_010",
+    "name": "PRS Xing",
+    "product_type": "Track Crossing Casting",
+    "quantity": 1,
+    "arrival_time": 40.0,
+    "due_date": 300.0,
+    "priority": 5,
+    "operations": [
+      {"sequence": 1, "name": "Pattern Making", "machine_id": "M1", "duration": 36.0, "setup_time": 5.0},
+      {"sequence": 2, "name": "Mould Making", "machine_id": "M2", "duration": 42.0, "setup_time": 6.0},
+      {"sequence": 3, "name": "Casting", "machine_id": "M3", "duration": 55.0, "setup_time": 8.0},
+      {"sequence": 4, "name": "Heat Treatment", "machine_id": "M4", "duration": 40.0, "setup_time": 6.0},
+      {"sequence": 5, "name": "Machining", "machine_id": "M5", "duration": 32.0, "setup_time": 5.0}
+    ]
+  }
+]
