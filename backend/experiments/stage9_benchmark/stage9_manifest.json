@@ -1,0 +1,93 @@
+{
+  "experiment_suite": "Stage 9 Reproducible Research Validation & Benchmarking",
+  "timestamp_utc": "2026-10-28T11:08:01.433050+00:00",
+  "total_trials": 280,
+  "total_violations": 0,
+  "total_elapsed_seconds": 76.59,
+  "environment": {
+    "os": "Windows-11-10.0.26200-SP0",
+    "python_version": "3.14.0 (tags/v3.14.0:ebf955d, Oct  7 2025, 10:15:03) [MSC v.1944 64 bit (AMD64)]",
+    "processor": "Intel64 Family 6 Model 126 Stepping 5, GenuineIntel",
+    "cpu_count": 4,
+    "pytorch_version": "2.11.0+cpu",
+    "ortools_version": "9.15.6755",
+    "numpy_version": "2.4.4",
+    "pandas_version": "3.0.3"
+  },
+  "epn_checkpoint": {
+    "loaded": true,
+    "device": "cpu",
+    "path": "backend/models/checkpoints/epn_model.pth"
+  },
+  "tiers": [
+    {
+      "tier_id": "TIER1_SMALL",
+      "description": "Small verification instances (6 jobs, 5 machines, 3-5 ops/job, static arrivals)",
+      "seeds": [
+        1001,
+        1002,
+        1003,
+        1004,
+        1005,
+        1006,
+        1007,
+        1008,
+        1009,
+        1010
+      ],
+      "cpsat_time_limit_s": 2.0
+    },
+    {
+      "tier_id": "TIER2_MEDIUM",
+      "description": "Medium 10-machine shop instances (10 jobs, 10 machines, 4-5 ops/job, Poisson arrivals)",
+      "seeds": [
+        2001,
+        2002,
+        2003,
+        2004,
+        2005,
+        2006,
+        2007,
+        2008,
+        2009,
+        2010
+      ],
+      "cpsat_time_limit_s": 2.0
+    },
+    {
+      "tier_id": "TIER3_DYNAMIC_BREAKDOWN",
+      "description": "Dynamic in-flight rescheduling at t=15m with completed/running op locks and M2 breakdown (25m)",
+      "seeds": [
+        3001,
+        3002,
+        3003,
+        3004,
+        3005,
+        3006,
+        3007,
+        3008,
+        3009,
+        3010
+      ],
+      "cpsat_time_limit_s": 2.0
+    },
+    {
+      "tier_id": "TIER4_LARGE_SCALE",
+      "description": "Large scalability stress instances (25 jobs, 10 machines, 125 operations total)",
+      "seeds": [
+        4001,
+        4002,
+        4003,
+        4004,
+        4005,
+        4006,
+        4007,
+        4008,
+        4009,
+        4010
+      ],
+      "cpsat_time_limit_s": 2.5
+    }
+  ],
+  "violations": []
+}

@@ -89,27 +89,71 @@ class EPNJobShopScheduler:
         horizon_T = 40
 
         for j in sorted_jobs:
-            num_ops = len(j.operations)
-            if num_ops > 5:
-                num_ops = 5
+            pending_ops = []
+            latest_comp = max(current_time, j.arrival_time)
+            for op in j.operations:
+                if op.status == "COMPLETED":
+                    e_t = op.end_time or 0.0
+                    latest_comp = max(latest_comp, e_t)
+                    scheduled_tasks.append(
+                        ScheduledTask(
+                            job_id=j.job_id,
+                            job_name=j.name,
+                            operation_sequence=op.sequence,
+                            operation_name=op.name,
+                            machine_id=op.assigned_machine_id or op.machine_id,
+                            start_time=op.start_time or 0.0,
+                            end_time=e_t,
+                            duration=op.duration,
+                            is_completed=True
+                        )
+                    )
+                elif op.status == "RUNNING":
+                    s_t = op.start_time or current_time
+                    m_obj = next((m for m in machines if m.machine_id == op.machine_id), None)
+                    rem_t = m_obj.remaining_processing_time if m_obj else op.duration
+                    e_t = current_time + rem_t
+                    latest_comp = max(latest_comp, e_t)
+                    machine_free_time[op.machine_id] = max(machine_free_time.get(op.machine_id, current_time), e_t)
+                    scheduled_tasks.append(
+                        ScheduledTask(
+                            job_id=j.job_id,
+                            job_name=j.name,
+                            operation_sequence=op.sequence,
+                            operation_name=op.name,
+                            machine_id=op.machine_id,
+                            start_time=s_t,
+                            end_time=round(e_t, 2),
+                            duration=op.duration,
+                            is_running=True
+                        )
+                    )
+                else:
+                    pending_ops.append(op)
+
+            num_ops = len(pending_ops)
+            if num_ops == 0:
+                continue
+            neural_ops = min(num_ops, 5)
 
             # Synthesize cost vector sequence (T, input_dim=5) based on machine workload prices
             cost_seq = torch.zeros(1, horizon_T, 5, device=self.device)
             for t in range(horizon_T):
-                for op_i in range(min(num_ops, 5)):
-                    m_id = j.operations[op_i].machine_id
+                for op_i in range(neural_ops):
+                    m_id = pending_ops[op_i].machine_id
                     cost_seq[0, t, op_i] = (machine_free_time.get(m_id, 0.0) / 10.0)
 
             with torch.no_grad():
-                pred_indices, _ = self.model(cost_seq, num_operations=num_ops)
+                pred_indices, _ = self.model(cost_seq, num_operations=neural_ops)
                 pred_slots = pred_indices[0].cpu().numpy()
 
             # Schedule operations according to neural pointers with strict machine conflict avoidance
-            job_ready = current_time + j.arrival_time
-            for op_idx, op in enumerate(j.operations[:num_ops]):
+            job_ready = latest_comp
+            for op_idx, op in enumerate(pending_ops):
                 m_id = op.machine_id
-                # Neural guidance time slot scaled to minutes
-                neural_offset = float(pred_slots[op_idx]) * 2.0
+                # Neural guidance time slot scaled to minutes (for ops beyond 5, continue from last slot)
+                slot_val = float(pred_slots[op_idx]) if op_idx < neural_ops else float(pred_slots[neural_ops - 1])
+                neural_offset = slot_val * 2.0
                 est_start = max(job_ready, machine_free_time[m_id], current_time + neural_offset)
                 est_end = est_start + op.duration
 

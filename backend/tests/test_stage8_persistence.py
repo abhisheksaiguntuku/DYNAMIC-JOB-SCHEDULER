@@ -140,3 +140,4 @@ def test_reset_persists_zero_sim_time():
     sim.reset()
     assert sim.sim_time == 0.0
     assert DiscreteEventSimulator().sim_time == 0.0
+

@@ -281,3 +281,4 @@ def test_concurrent_job_submissions_and_rescheduling_thread_safe():
     is_valid, errors = ScheduleValidator.validate(final_res.tasks, machines, sim.sim_time)
     assert is_valid, f"Concurrent execution produced invalid schedule: {errors}"
     assert len(final_res.tasks) == 16
+
