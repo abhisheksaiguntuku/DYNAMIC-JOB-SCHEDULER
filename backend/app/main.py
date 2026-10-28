@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
@@ -16,9 +17,12 @@ app = FastAPI(
     version="1.0.0"
 )
 
+_raw_cors = os.getenv("CORS_ORIGINS", "*").strip()
+_allowed_origins = ["*"] if _raw_cors == "*" or not _raw_cors else [o.strip() for o in _raw_cors.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

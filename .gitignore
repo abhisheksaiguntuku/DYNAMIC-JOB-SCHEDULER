@@ -4,7 +4,18 @@ __pycache__/
 *.pyc
 .pytest_cache/
 backups/
+
+# Local SQLite databases (never publish local runtime DB state)
+*.db
+*.sqlite
+*.sqlite3
 *.db-journal
 *.db-wal
 *.db-shm
 
+# Environment secrets (allow .env.example templates)
+.env
+.env.*
+!.env.example
+!/backend/.env.example
+!/frontend/.env.example
