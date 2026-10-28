@@ -36,11 +36,15 @@ class EPNJobShopScheduler:
         heuristic when ``schedule`` is called.
         """
         if checkpoint_path is None:
-            # Resolve default checkpoint relative to the project root.
+            # Resolve default checkpoint relative to the project root (or backend root when deployed with Root Directory = backend).
             # __file__ -> .../backend/app/ml/inference/epn_scheduler.py
             # parents[4] -> <project_root>/dynamic_job_shop_scheduler
+            # parents[3] -> <backend_root>
             project_root = Path(__file__).resolve().parents[4]
-            checkpoint_path = str(project_root / "backend" / "models" / "checkpoints" / "epn_model.pth")
+            candidate = project_root / "backend" / "models" / "checkpoints" / "epn_model.pth"
+            if not candidate.exists():
+                candidate = Path(__file__).resolve().parents[3] / "models" / "checkpoints" / "epn_model.pth"
+            checkpoint_path = str(candidate)
         
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = EnhancedPointerNetwork(input_dim=5, hidden_dim=64, encoder_layers=2)
