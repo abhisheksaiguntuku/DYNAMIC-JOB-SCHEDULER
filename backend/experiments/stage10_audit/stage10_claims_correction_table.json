@@ -1,0 +1,50 @@
+[
+  {
+    "claim_id": "CLAIM-01",
+    "location": "docs/STAGE9_EXPERIMENTAL_REPORT.md Section 9 Conclusion 1",
+    "original_statement": "CP-SAT consistently achieves the lowest makespan and total tardiness across all four tiers, reducing mean makespan by 47%-53% and mean total tardiness by 73%-89% compared to the strongest dispatching heuristic (SPT) on medium, dynamic breakdown, and large-scale tiers.",
+    "recomputed_exact_values": "Makespan reduction of CP-SAT vs SPT: Tier 1 = 40.15% (153.10 vs 255.80; note FCFS is 155.70 on Tier 1, so CP-SAT vs best heuristic FCFS on Tier 1 is 1.67%), Tier 2 = 47.25% (191.70 vs 363.39), Tier 3 = 38.12% (217.40 vs 351.30), Tier 4 = 53.10% (387.40 vs 825.95). Total tardiness reduction of CP-SAT vs SPT: Tier 1 = 88.57% (vs FCFS = 54.54%), Tier 2 = 89.22%, Tier 3 = 76.39%, Tier 4 = 73.04%.",
+    "audit_verdict": "NEEDS_NUMERICAL_RANGE_CORRECTION",
+    "explanation": "Section 6 correctly reported 38.1% makespan reduction on Tier 3, but Section 9 Conclusion 1 quoted '47%-53%' across medium, dynamic breakdown, and large-scale tiers, omitting the 38.12% lower bound on Tier 3. Also, on Tier 1 Small, FCFS (155.70m) outperformed SPT (255.80m) and was not statistically different from CP-SAT (153.10m, p=0.417)."
+  },
+  {
+    "claim_id": "CLAIM-02",
+    "location": "docs/STAGE9_EXPERIMENTAL_REPORT.md Section 9 Conclusion 2",
+    "original_statement": "Among classic dispatching heuristics, SPT is the strongest baseline on contended multi-job shop floors (Tiers 2, 3, and 4), executing in 1-16ms (170x-700x faster than CP-SAT).",
+    "recomputed_exact_values": "Mean runtime ratio (CP-SAT / SPT): Tier 1 = 298.1x (300.16ms / 1.01ms), Tier 2 = 797.4x (1679.37ms / 2.11ms), Tier 3 = 706.6x (2054.11ms / 2.91ms), Tier 4 = 171.4x (2660.92ms / 15.53ms).",
+    "audit_verdict": "MINOR_UPPER_BOUND_UNDERSPECIFIED",
+    "explanation": "Actual mean runtime speedup spans 171.4x to 797.4x (rather than 170x-700x)."
+  },
+  {
+    "claim_id": "CLAIM-03",
+    "location": "backend/app/experiments/stage9_benchmark.py line 431 & Section 5 Tables",
+    "original_statement": "95% confidence intervals computed using normal multiplier 1.96 * s / sqrt(10).",
+    "recomputed_exact_values": "For n = 10 (df = 9), the exact Student-t critical value is t_{0.975, 9} = 2.2622, which widens all marginal 95% CI half-widths by +15.42% relative to 1.96.",
+    "audit_verdict": "METHODOLOGICAL_CORRECTION_APPLIED",
+    "explanation": "Stage 10 replaces asymptotic z=1.96 with exact Student-t (df=9) CIs and adds paired within-seed CIs, paired t-tests, Wilcoxon signed-rank tests, and Holm-Bonferroni corrections."
+  },
+  {
+    "claim_id": "CLAIM-04",
+    "location": "docs/STAGE9_EXPERIMENTAL_REPORT.md Section 5 Solver Status & Optimality",
+    "original_statement": "CP-SAT reported OPTIMAL on Tier 1 (10/10) and FEASIBLE on Tier 2 (8/10 FEASIBLE, 2/10 OPTIMAL), Tier 3 (10/10 FEASIBLE), and Tier 4 (10/10 FEASIBLE).",
+    "recomputed_exact_values": "Across 40 Stage 9 instances, CP-SAT proved global optimality within the time budget on 12/40 instances (30.0%): 10/10 on Tier 1 (100%), 2/10 on Tier 2 (20%, seeds 2003 and 2004), 0/10 on Tier 3 (0%), and 0/10 on Tier 4 (0%). The remaining 28/40 instances (70.0%) are high-quality time-bounded FEASIBLE solutions.",
+    "audit_verdict": "VERIFIED_AND_CLARIFIED",
+    "explanation": "Paper claims must refer to CP-SAT on Tiers 2-4 as 'time-bounded CP-SAT optimization (2.0s-2.5s budget)' rather than claiming proven global optimality on all instances."
+  },
+  {
+    "claim_id": "CLAIM-05",
+    "location": "docs/STAGE9_EXPERIMENTAL_REPORT.md Section 6 Observation 3 (EPN Performance)",
+    "original_statement": "EPN lags behind SPT and CP-SAT due to job-sequential outer loop and positive neural slot offset (slot * 2.0).",
+    "recomputed_exact_values": "Verified by Stage 10 Phase E trace and ablation audit: removing the positive offset alone (Ablation A) reduces mean makespan by only 0.60% on Tier 1 (333.20m -> 331.20m), 0.37% on Tier 2 (398.12m -> 396.66m), 0.21% on Tier 3 (584.40m -> 583.20m), 0.16% on Tier 4 (1346.60m -> 1344.42m), and 0.25% on Tier 5 (727.50m -> 725.70m). In contrast, switching from job-sequential decoding to operation-level ready-queue decoding guided by pure EPN slots (Ablation B) reduces mean makespan by 49.25% on Tier 1 (169.10m), 50.67% on Tier 2 (196.38m), 61.63% on Tier 3 (224.23m), 71.13% on Tier 4 (388.74m), and 58.82% on Tier 5 (299.60m).",
+    "audit_verdict": "CAUSAL_MECHANISM_QUANTIFIED",
+    "explanation": "Job-sequential serialization accounts for >95% of EPN's makespan inflation, whereas the positive neural slot offset only delays the very first operations of the first scheduled job when current_time + slot*2 > job_ready."
+  },
+  {
+    "claim_id": "CLAIM-06",
+    "location": "backend/app/optimization/cpsat_solver.py line 213 (CP-SAT Reproducibility)",
+    "original_statement": "All 280 trials are deterministically reproducible from explicit seeds.",
+    "recomputed_exact_values": "All 240/240 trials of deterministic algorithms (FCFS, SPT, EDD, CR, AGING, EPN) reproduce 100.0% identically (0 discrepancies). However, CP-SAT sets num_search_workers = 4 with a wall-clock timeout (2.0s-2.5s), causing 18/40 CP-SAT runs on non-trivial instances to exhibit minor multi-threaded incumbent drift upon re-execution.",
+    "audit_verdict": "REPRODUCIBILITY_NUANCE_DOCUMENTED",
+    "explanation": "Multi-threaded CP-SAT with wall-clock time limits is non-deterministic across CPU load variations unless single-threaded or work-unit bounded; stored Stage 9 raw CSV/JSON artifacts serve as the immutable frozen reference."
+  }
+]

@@ -29,7 +29,7 @@ class ScheduleValidator:
                         f"overlaps with {t2.job_id}-Op{t2.operation_sequence} [{t2.start_time:.1f}-{t2.end_time:.1f}]"
                     )
 
-        # 2. Check machine availability / downtime window for pending future tasks
+        # 2. Check machine availability / downtime window and BUSY lock for pending future tasks
         for t in tasks:
             if not t.is_completed and not t.is_running:
                 m = machine_map.get(t.machine_id)
@@ -41,8 +41,38 @@ class ScheduleValidator:
                             f"Pending Task {t.job_id}-Op{t.operation_sequence} scheduled at {t.start_time:.1f} "
                             f"while machine is {m.status.value} until {down_until:.1f}"
                         )
+                elif m and m.status == MachineStatus.BUSY and m.remaining_processing_time > 1e-4:
+                    busy_until = current_time + m.remaining_processing_time
+                    if t.start_time < busy_until - 1e-4:
+                        errors.append(
+                            f"Busy Machine Lock Violation on {t.machine_id}: "
+                            f"Pending Task {t.job_id}-Op{t.operation_sequence} scheduled at {t.start_time:.1f} "
+                            f"while machine is BUSY until {busy_until:.1f}"
+                        )
 
-        # 2. Check operation precedence per job
+        # 3. Check duration and interval consistency
+        seen_job_ops = set()
+        for t in tasks:
+            op_key = (t.job_id, t.operation_sequence)
+            if op_key in seen_job_ops:
+                errors.append(
+                    f"Duplicate Operation Violation: Task {t.job_id}-Op{t.operation_sequence} "
+                    f"appears multiple times in the schedule"
+                )
+            seen_job_ops.add(op_key)
+
+            if t.duration <= 0 or t.end_time < t.start_time - 1e-4:
+                errors.append(
+                    f"Duration Consistency Violation in {t.job_id}-Op{t.operation_sequence}: "
+                    f"Invalid duration ({t.duration:.2f}) or negative interval [{t.start_time:.2f}-{t.end_time:.2f}]"
+                )
+            elif not t.is_running and abs((t.end_time - t.start_time) - t.duration) > 1e-1:
+                errors.append(
+                    f"Duration Mismatch Violation in {t.job_id}-Op{t.operation_sequence}: "
+                    f"end_time - start_time ({t.end_time - t.start_time:.2f}) != duration ({t.duration:.2f})"
+                )
+
+        # 4. Check operation precedence per job
         tasks_by_job: Dict[str, List[ScheduledTask]] = {}
         for t in tasks:
             tasks_by_job.setdefault(t.job_id, []).append(t)

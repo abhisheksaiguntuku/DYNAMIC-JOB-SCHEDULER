@@ -1,0 +1,42 @@
+{
+  "stage": "Stage 10 Phase B & F Audit",
+  "timestamp_utc": "2026-10-28T11:37:41.208603+00:00",
+  "total_stage9_trials_audited": 280,
+  "validator_valid_count": 280,
+  "independent_auditor_valid_count": 280,
+  "deterministic_algorithms_discrepancies": 0,
+  "cpsat_multithreaded_wallclock_drift_trials": 18,
+  "student_t_critical_df9": 2.262157,
+  "hash_verification": {
+    "epn_model.pth": {
+      "expected": "55F9E9227E1F527C86678AEF0565B16B92D450B2FC2D68ABADB0D3DF10970FA6",
+      "actual": "55F9E9227E1F527C86678AEF0565B16B92D450B2FC2D68ABADB0D3DF10970FA6",
+      "match": true
+    },
+    "stage9_raw_results.csv": {
+      "expected": "530BC6FE111B9ECE413CDB1FDDFC2DCF4F3CE182DF9EF706C2F86B145CC234F0",
+      "actual": "530BC6FE111B9ECE413CDB1FDDFC2DCF4F3CE182DF9EF706C2F86B145CC234F0",
+      "match": true
+    },
+    "stage9_raw_results.json": {
+      "expected": "385197957B111C62C97EEC4D398457DB6953459E97F48E125151B6B99AF6B421",
+      "actual": "385197957B111C62C97EEC4D398457DB6953459E97F48E125151B6B99AF6B421",
+      "match": true
+    },
+    "stage9_summary_table.csv": {
+      "expected": "CACEFB149B5FDC42865334873B9526F5685C7A1E10B26D21C44FAFF09E4403F2",
+      "actual": "CACEFB149B5FDC42865334873B9526F5685C7A1E10B26D21C44FAFF09E4403F2",
+      "match": true
+    },
+    "stage9_summary_table.json": {
+      "expected": "F696C7718EC79F255EBFDE4E5007AE3CD181C2EEC5296B5D2C007E52D11C1EBC",
+      "actual": "F696C7718EC79F255EBFDE4E5007AE3CD181C2EEC5296B5D2C007E52D11C1EBC",
+      "match": true
+    },
+    "stage9_manifest.json": {
+      "expected": "8EA804B96FF02899D432FBB46B6DC60C1F96F330EC5AAFA2B7A09DB0810B24CC",
+      "actual": "8EA804B96FF02899D432FBB46B6DC60C1F96F330EC5AAFA2B7A09DB0810B24CC",
+      "match": true
+    }
+  }
+}

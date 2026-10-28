@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 460" width="960" height="460">
+<rect width="100%" height="100%" fill="#0f172a"/>
+<text x="480" y="34" fill="#f8fafc" font-family="sans-serif" font-size="16" font-weight="bold" text-anchor="middle">Stage 10 Phase E: EPN Controlled Ablation Study — Mean Makespan Across Tiers 1-5</text>
+<rect x="65" y="299.8" width="24" height="60.2" fill="#ef4444" rx="2"/>
+<text x="77.0" y="295.8" fill="#e2e8f0" font-family="sans-serif" font-size="8.5" text-anchor="middle">333</text>
+<rect x="93" y="300.1" width="24" height="59.9" fill="#f97316" rx="2"/>
+<text x="105.0" y="296.1" fill="#e2e8f0" font-family="sans-serif" font-size="8.5" text-anchor="middle">331</text>
+<rect x="121" y="329.4" width="24" height="30.6" fill="#10b981" rx="2"/>
+<text x="133.0" y="325.4" fill="#e2e8f0" font-family="sans-serif" font-size="8.5" text-anchor="middle">169</text>
+<rect x="149" y="330.3" width="24" height="29.7" fill="#06b6d4" rx="2"/>
+<text x="161.0" y="326.3" fill="#e2e8f0" font-family="sans-serif" font-size="8.5" text-anchor="middle">164</text>
+<rect x="177" y="313.7" width="24" height="46.3" fill="#3b82f6" rx="2"/>
+<text x="189.0" y="309.7" fill="#e2e8f0" font-family="sans-serif" font-size="8.5" text-anchor="middle">256</text>
+<text x="133" y="382" fill="#f8fafc" font-family="sans-serif" font-size="11" font-weight="bold" text-anchor="middle">T1_SMALL</text>
+<rect x="240" y="288.0" width="24" height="72.0" fill="#ef4444" rx="2"/>
+<text x="252.0" y="284.0" fill="#e2e8f0" font-family="sans-serif" font-size="8.5" text-anchor="middle">398</text>
+<rect x="268" y="288.3" width="24" height="71.7" fill="#f97316" rx="2"/>
+<text x="280.0" y="284.3" fill="#e2e8f0" font-family="sans-serif" font-size="8.5" text-anchor="middle">397</text>
+<rect x="296" y="324.5" width="24" height="35.5" fill="#10b981" rx="2"/>
+<text x="308.0" y="320.5" fill="#e2e8f0" font-family="sans-serif" font-size="8.5" text-anchor="middle">196</text>
+<rect x="324" y="324.4" width="24" height="35.6" fill="#06b6d4" rx="2"/>
+<text x="336.0" y="320.4" fill="#e2e8f0" font-family="sans-serif" font-size="8.5" text-anchor="middle">197</text>
+<rect x="352" y="294.3" width="24" height="65.7" fill="#3b82f6" rx="2"/>
+<text x="364.0" y="290.3" fill="#e2e8f0" font-family="sans-serif" font-size="8.5" text-anchor="middle">363</text>
+<text x="308" y="382" fill="#f8fafc" font-family="sans-serif" font-size="11" font-weight="bold" text-anchor="middle">T2_MEDIUM</text>
+<rect x="415" y="254.3" width="24" height="105.7" fill="#ef4444" rx="2"/>
+<text x="427.0" y="250.3" fill="#e2e8f0" font-family="sans-serif" font-size="8.5" text-anchor="middle">584</text>
+<rect x="443" y="254.6" width="24" height="105.4" fill="#f97316" rx="2"/>
+<text x="455.0" y="250.6" fill="#e2e8f0" font-family="sans-serif" font-size="8.5" text-anchor="middle">583</text>
+<rect x="471" y="319.5" width="24" height="40.5" fill="#10b981" rx="2"/>
+<text x="483.0" y="315.5" fill="#e2e8f0" font-family="sans-serif" font-size="8.5" text-anchor="middle">224</text>
+<rect x="499" y="320.5" width="24" height="39.5" fill="#06b6d4" rx="2"/>
+<text x="511.0" y="316.5" fill="#e2e8f0" font-family="sans-serif" font-size="8.5" text-anchor="middle">218</text>
+<rect x="527" y="296.5" width="24" height="63.5" fill="#3b82f6" rx="2"/>
+<text x="539.0" y="292.5" fill="#e2e8f0" font-family="sans-serif" font-size="8.5" text-anchor="middle">351</text>
+<text x="483" y="382" fill="#f8fafc" font-family="sans-serif" font-size="11" font-weight="bold" text-anchor="middle">T3_DYNAMIC_BREAKDOWN</text>
+<rect x="590" y="116.5" width="24" height="243.5" fill="#ef4444" rx="2"/>
+<text x="602.0" y="112.5" fill="#e2e8f0" font-family="sans-serif" font-size="8.5" text-anchor="middle">1347</text>
+<rect x="618" y="116.9" width="24" height="243.1" fill="#f97316" rx="2"/>
+<text x="630.0" y="112.9" fill="#e2e8f0" font-family="sans-serif" font-size="8.5" text-anchor="middle">1344</text>
+<rect x="646" y="289.7" width="24" height="70.3" fill="#10b981" rx="2"/>
+<text x="658.0" y="285.7" fill="#e2e8f0" font-family="sans-serif" font-size="8.5" text-anchor="middle">389</text>
+<rect x="674" y="291.2" width="24" height="68.8" fill="#06b6d4" rx="2"/>
+<text x="686.0" y="287.2" fill="#e2e8f0" font-family="sans-serif" font-size="8.5" text-anchor="middle">380</text>
+<rect x="702" y="210.7" width="24" height="149.3" fill="#3b82f6" rx="2"/>
+<text x="714.0" y="206.7" fill="#e2e8f0" font-family="sans-serif" font-size="8.5" text-anchor="middle">826</text>
+<text x="658" y="382" fill="#f8fafc" font-family="sans-serif" font-size="11" font-weight="bold" text-anchor="middle">T4_LARGE_SCALE</text>
+<rect x="765" y="228.5" width="24" height="131.5" fill="#ef4444" rx="2"/>
+<text x="777.0" y="224.5" fill="#e2e8f0" font-family="sans-serif" font-size="8.5" text-anchor="middle">728</text>
+<rect x="793" y="228.8" width="24" height="131.2" fill="#f97316" rx="2"/>
+<text x="805.0" y="224.8" fill="#e2e8f0" font-family="sans-serif" font-size="8.5" text-anchor="middle">726</text>
+<rect x="821" y="305.8" width="24" height="54.2" fill="#10b981" rx="2"/>
+<text x="833.0" y="301.8" fill="#e2e8f0" font-family="sans-serif" font-size="8.5" text-anchor="middle">300</text>
+<rect x="849" y="304.2" width="24" height="55.8" fill="#06b6d4" rx="2"/>
+<text x="861.0" y="300.2" fill="#e2e8f0" font-family="sans-serif" font-size="8.5" text-anchor="middle">308</text>
+<rect x="877" y="261.0" width="24" height="99.0" fill="#3b82f6" rx="2"/>
+<text x="889.0" y="257.0" fill="#e2e8f0" font-family="sans-serif" font-size="8.5" text-anchor="middle">547</text>
+<text x="833" y="382" fill="#f8fafc" font-family="sans-serif" font-size="11" font-weight="bold" text-anchor="middle">T5_REPEATED_ROUTING</text>
+<rect x="80" y="410" width="14" height="14" fill="#ef4444" rx="2"/>
+<text x="100" y="422" fill="#cbd5e1" font-family="sans-serif" font-size="11">EPN Baseline</text>
+<rect x="255" y="410" width="14" height="14" fill="#f97316" rx="2"/>
+<text x="275" y="422" fill="#cbd5e1" font-family="sans-serif" font-size="11">Ablation A (No Offset)</text>
+<rect x="430" y="410" width="14" height="14" fill="#10b981" rx="2"/>
+<text x="450" y="422" fill="#cbd5e1" font-family="sans-serif" font-size="11">Ablation B (Pure EPN Op-Ready)</text>
+<rect x="605" y="410" width="14" height="14" fill="#06b6d4" rx="2"/>
+<text x="625" y="422" fill="#cbd5e1" font-family="sans-serif" font-size="11">Ablation C (Hybrid EPN+SPT)</text>
+<rect x="780" y="410" width="14" height="14" fill="#3b82f6" rx="2"/>
+<text x="800" y="422" fill="#cbd5e1" font-family="sans-serif" font-size="11">SPT Heuristic</text>
+</svg>

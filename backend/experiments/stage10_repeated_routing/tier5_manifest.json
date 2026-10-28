@@ -1,0 +1,37 @@
+{
+  "stage": "Stage 10 Phase D - TIER5_REPEATED_ROUTING",
+  "timestamp_utc": "2026-10-28T11:39:55.779046+00:00",
+  "tier_config": {
+    "tier_id": "TIER5_REPEATED_ROUTING",
+    "description": "Re-entrant / repeated-machine routing shop floor (12 jobs, 10 machines, 3-6 ops/job, >=50% jobs revisit the same machine multiple times e.g. M1->M3->M1->M2)",
+    "num_jobs": 12,
+    "num_machines": 10,
+    "ops_range": [
+      3,
+      6
+    ],
+    "duration_range": [
+      12,
+      38
+    ],
+    "seeds": [
+      5001,
+      5002,
+      5003,
+      5004,
+      5005,
+      5006,
+      5007,
+      5008,
+      5009,
+      5010
+    ],
+    "has_downtime": false,
+    "has_running_ops": false,
+    "current_time": 0.0,
+    "cpsat_time_limit_s": 2.5
+  },
+  "total_trials": 70,
+  "validator_valid_count": 70,
+  "independent_audit_valid_count": 70
+}

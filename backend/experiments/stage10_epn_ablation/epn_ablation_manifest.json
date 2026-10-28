@@ -1,0 +1,22 @@
+{
+  "stage": "Stage 10 Phase E - EPN Failure Analysis & Controlled Ablations",
+  "timestamp_utc": "2026-10-28T11:40:20.487064+00:00",
+  "total_ablation_trials": 300,
+  "validator_valid_count": 300,
+  "independent_audit_valid_count": 300,
+  "variants_tested": [
+    "EPN_BASELINE",
+    "EPN_ABLATION_A_NO_OFFSET",
+    "EPN_ABLATION_B_OP_READY_DECODING",
+    "EPN_ABLATION_C_HYBRID_SPT",
+    "SPT",
+    "FCFS"
+  ],
+  "tiers_tested": [
+    "TIER1_SMALL",
+    "TIER2_MEDIUM",
+    "TIER3_DYNAMIC_BREAKDOWN",
+    "TIER4_LARGE_SCALE",
+    "TIER5_REPEATED_ROUTING"
+  ]
+}
