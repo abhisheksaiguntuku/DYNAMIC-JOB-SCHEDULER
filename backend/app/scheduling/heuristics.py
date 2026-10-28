@@ -30,7 +30,11 @@ class DispatchHeuristicScheduler:
         
         # Machine state baseline
         for m in machines:
-            if m.status == MachineStatus.BUSY:
+            if m.status in (MachineStatus.DOWN, MachineStatus.MAINTENANCE):
+                # Unavailable until recovery or current_time + remaining downtime
+                downtime_rem = m.remaining_processing_time if m.remaining_processing_time > 1e-4 else 1e6
+                machine_free_time[m.machine_id] = current_time + downtime_rem
+            elif m.status == MachineStatus.BUSY:
                 # Locked until current_time + remaining processing time
                 machine_free_time[m.machine_id] = current_time + m.remaining_processing_time
             else:
@@ -64,7 +68,9 @@ class DispatchHeuristicScheduler:
                     next_idx = idx + 1
                 elif op.status == OperationStatus.RUNNING:
                     start_t = op.start_time or current_time
-                    end_t = current_time + (m.remaining_processing_time if (m := next((m for m in machines if m.machine_id == op.machine_id), None)) else op.duration)
+                    m_obj = next((m for m in machines if m.machine_id == op.machine_id), None)
+                    rem_t = m_obj.remaining_processing_time if m_obj else op.duration
+                    end_t = current_time + rem_t
                     scheduled_tasks.append(
                         ScheduledTask(
                             job_id=j.job_id,
@@ -78,6 +84,7 @@ class DispatchHeuristicScheduler:
                             is_running=True
                         )
                     )
+                    machine_free_time[op.machine_id] = max(machine_free_time.get(op.machine_id, current_time), end_t)
                     latest_comp = max(latest_comp, end_t)
                     next_idx = idx + 1
                     break
@@ -85,23 +92,30 @@ class DispatchHeuristicScheduler:
             job_ready_time[j.job_id] = max(latest_comp, current_time)
 
         # 2. Simulation forward-pass dispatching remaining operations
+        all_machine_ids = {m.machine_id for m in machines}
         while True:
             # Gather all eligible pending operations
-            candidate_ops: List[Tuple[Job, int, float]] = [] # (job, op_index, candidate_start_time)
+            candidate_ops: List[Tuple[Job, int, float, str]] = [] # (job, op_index, candidate_start_time, chosen_machine_id)
             for j_id, idx in job_next_op_idx.items():
                 j = job_map[j_id]
                 if idx < len(j.operations):
                     op = j.operations[idx]
-                    req_m = op.machine_id
-                    earliest_start = max(job_ready_time[j_id], machine_free_time.get(req_m, current_time))
-                    candidate_ops.append((j, idx, earliest_start))
+                    eligible_m = [op.machine_id] + [alt for alt in op.alternative_machines if alt in all_machine_ids]
+                    best_m = op.machine_id
+                    best_start = max(job_ready_time[j_id], machine_free_time.get(best_m, current_time))
+                    for cand_m in eligible_m:
+                        cand_start = max(job_ready_time[j_id], machine_free_time.get(cand_m, current_time))
+                        if cand_start < best_start:
+                            best_start = cand_start
+                            best_m = cand_m
+                    candidate_ops.append((j, idx, best_start, best_m))
                     
             if not candidate_ops:
                 break # All operations scheduled
                 
             # Sort candidate operations according to the chosen dispatch rule
-            def get_sort_key(item: Tuple[Job, int, float]):
-                j, idx, est_start = item
+            def get_sort_key(item: Tuple[Job, int, float, str]):
+                j, idx, est_start, _ = item
                 op = j.operations[idx]
                 rem_work = sum(o.duration for o in j.operations[idx:])
                 time_until_due = j.due_date - est_start
@@ -128,9 +142,8 @@ class DispatchHeuristicScheduler:
             candidate_ops.sort(key=get_sort_key)
             
             # Dispatch top candidate
-            chosen_job, chosen_idx, _ = candidate_ops[0]
+            chosen_job, chosen_idx, _, m_id = candidate_ops[0]
             chosen_op = chosen_job.operations[chosen_idx]
-            m_id = chosen_op.machine_id
             
             actual_start = max(job_ready_time[chosen_job.job_id], machine_free_time[m_id])
             actual_end = actual_start + chosen_op.duration

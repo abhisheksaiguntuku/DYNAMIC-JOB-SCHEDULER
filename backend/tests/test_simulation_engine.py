@@ -1,6 +1,6 @@
 import pytest
 from app.simulation.engine import DiscreteEventSimulator
-from app.database.db import init_db, SessionLocal, MachineModel, JobModel
+from app.database.db import init_db, SessionLocal, MachineModel, JobModel, SimulationStateModel
 from app.schemas.models import Job, Operation, MachineStatus, OperationStatus, JobStatus
 
 @pytest.fixture(scope="function", autouse=True)
@@ -9,6 +9,7 @@ def setup_db():
     init_db()
     # Clean tables before tests
     db = SessionLocal()
+    db.query(SimulationStateModel).delete()
     db.query(MachineModel).delete()
     db.query(JobModel).delete()
     db.commit()
@@ -16,6 +17,7 @@ def setup_db():
     yield
     # Cleanup after module
     db = SessionLocal()
+    db.query(SimulationStateModel).delete()
     db.query(MachineModel).delete()
     db.query(JobModel).delete()
     db.commit()

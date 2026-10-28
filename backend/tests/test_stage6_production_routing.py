@@ -4,13 +4,14 @@ from app.core.state_service import ProductionStateService
 from app.optimization.cpsat_solver import CPSATSchedulingOptimizer
 from app.scheduling.heuristics import DispatchHeuristicScheduler
 from app.scheduling.validator import ScheduleValidator
-from app.database.db import init_db, SessionLocal, JobModel, MachineModel
+from app.database.db import init_db, SessionLocal, JobModel, MachineModel, SimulationStateModel
 import pydantic_core
 
 @pytest.fixture(autouse=True)
 def setup_ten_machines_db():
     init_db()
     db = SessionLocal()
+    db.query(SimulationStateModel).delete()
     db.query(JobModel).delete()
     db.query(MachineModel).delete()
     # Add all 10 machines

@@ -1,8 +1,9 @@
 import pytest
 from app.simulation.engine import DiscreteEventSimulator
-from app.core.state_service import ProductionStateService
-from app.database.db import init_db, SessionLocal, MachineModel, JobModel
+from app.core.state_service import ProductionStateService, StaleScheduleError
+from app.database.db import init_db, SessionLocal, MachineModel, JobModel, SimulationStateModel
 from app.schemas.models import MachineStatus, OperationStatus, JobStatus
+from app.scheduling.validator import ScheduleValidator
 
 # Fixture: isolated DB per test (function scope already set globally)
 
@@ -156,10 +157,34 @@ def test_simultaneous_arrivals():
     assert "J1" in job_ids and "J2" in job_ids
     db.close()
 
-# Scenario 8 – Machine downtime (not implemented)
-@pytest.mark.skip(reason="Machine breakdown feature not implemented in current codebase")
+# Scenario 8 – Machine downtime and recovery
 def test_machine_downtime_and_recovery():
-    pass
+    sim = DiscreteEventSimulator()
+    db = SessionLocal()
+    insert_machine(db, "M1")
+    insert_machine(db, "M2")
+    insert_job(db, "J1", arrival=0.0, ops=simple_job_ops("J1", dur1=5, dur2=3))
+    db.close()
+
+    # Trigger breakdown on M1 for 20 minutes
+    m1_down = ProductionStateService.set_machine_downtime("M1", down_duration=20.0)
+    assert m1_down.status == MachineStatus.DOWN
+    assert m1_down.remaining_processing_time == 20.0
+
+    # Recalculate schedule – J1 Op1 on M1 must not start before t=20.0
+    res_down = ProductionStateService.recalculate_schedule(sim.sim_time, algorithm="FCFS")
+    m1_task = next(t for t in res_down.tasks if t.job_id == "J1" and t.operation_sequence == 1)
+    assert m1_task.start_time >= 20.0
+    machines = ProductionStateService.get_all_machines()
+    is_valid, errors = ScheduleValidator.validate(res_down.tasks, machines, sim.sim_time)
+    assert is_valid, f"Schedule during downtime invalid: {errors}"
+
+    # Recover M1 early and recalculate – J1 Op1 can now start at t=0.0
+    m1_rec = ProductionStateService.recover_machine("M1")
+    assert m1_rec.status == MachineStatus.IDLE
+    res_rec = ProductionStateService.recalculate_schedule(sim.sim_time, algorithm="FCFS")
+    m1_task_rec = next(t for t in res_rec.tasks if t.job_id == "J1" and t.operation_sequence == 1)
+    assert m1_task_rec.start_time == 0.0
 
 # Scenario 9 – Invalid job definitions
 def test_invalid_job_missing_operations():
@@ -173,10 +198,30 @@ def test_invalid_job_missing_operations():
         ProductionStateService.recalculate_schedule(sim.sim_time, algorithm="FCFS")
     db.close()
 
-# Scenario 10 – Stale schedule rejection (not supported)
-@pytest.mark.skip(reason="Versioned schedule validation not present in backend")
+# Scenario 10 – Stale schedule rejection
 def test_stale_schedule_rejection():
-    pass
+    sim = DiscreteEventSimulator()
+    db = SessionLocal()
+    insert_machine(db, "M1")
+    insert_machine(db, "M2")
+    insert_job(db, "J1", arrival=0.0, ops=simple_job_ops("J1"))
+    db.close()
+
+    initial_version = ProductionStateService.get_state_version()
+    # Advance simulation time (mutates production state and increments state_version)
+    sim.advance_time(step_minutes=10.0)
+    new_version = ProductionStateService.get_state_version()
+    assert new_version > initial_version
+
+    # Attempting to recalculate using obsolete state_version or obsolete sim_time must raise StaleScheduleError
+    with pytest.raises(StaleScheduleError):
+        ProductionStateService.recalculate_schedule(
+            sim.sim_time, algorithm="FCFS", expected_state_version=initial_version
+        )
+    with pytest.raises(StaleScheduleError):
+        ProductionStateService.recalculate_schedule(
+            0.0, algorithm="FCFS"
+        )
 
 # Scenario 11 – Repeated recalculation stability
 def test_repeated_recalculation_no_duplicate_operations():

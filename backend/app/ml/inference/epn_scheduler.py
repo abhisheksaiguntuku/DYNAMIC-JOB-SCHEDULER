@@ -77,10 +77,13 @@ class EPNJobShopScheduler:
         sorted_jobs = sorted(jobs, key=lambda j: (j.arrival_time, -j.priority))
         machine_free_time = {m.machine_id: current_time for m in machines}
         
-        # Account for busy machines
+        # Account for busy or down/maintenance machines
         for m in machines:
             if m.status == "BUSY":
                 machine_free_time[m.machine_id] = current_time + m.remaining_processing_time
+            elif m.status in ("DOWN", "MAINTENANCE"):
+                downtime_rem = m.remaining_processing_time if m.remaining_processing_time > 1e-4 else 1e6
+                machine_free_time[m.machine_id] = current_time + downtime_rem
 
         scheduled_tasks: List[ScheduledTask] = []
         horizon_T = 40

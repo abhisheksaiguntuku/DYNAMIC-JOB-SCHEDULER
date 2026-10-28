@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 from app.schemas.models import Job, Machine, ScheduleResult, MachineStatus
-from app.core.state_service import ProductionStateService
+from app.core.state_service import ProductionStateService, StaleScheduleError
 from app.ml.recommender import MLStrategyRecommender
 from app.simulation.engine import DiscreteEventSimulator
 from app.scheduling.heuristics import DispatchHeuristicScheduler
@@ -33,11 +33,16 @@ def startup_event():
     jobs_file = str(DATA_DIR / "initial_jobs.json")
     machines_file = str(DATA_DIR / "initial_machines.json")
     ProductionStateService.seed_if_empty(jobs_file, machines_file)
+    simulator.load_state()
     
     # Train ML strategy recommender
     base_jobs = ProductionStateService.get_all_jobs()
     machines = ProductionStateService.get_all_machines()
     ml_recommender.train_on_simulated_scenarios(base_jobs, machines)
+
+@app.on_event("shutdown")
+def shutdown_event():
+    simulator.save_state()
 
 @app.get("/api/health")
 def health_check():
@@ -46,6 +51,20 @@ def health_check():
 @app.get("/api/machines", response_model=List[Machine])
 def get_machines():
     return ProductionStateService.get_all_machines()
+
+@app.post("/api/machines/{machine_id}/downtime", response_model=Machine)
+def trigger_machine_downtime(machine_id: str, duration: float = Query(20.0, gt=0.0), reason: str = Query("Breakdown")):
+    try:
+        return ProductionStateService.set_machine_downtime(machine_id, down_duration=duration, reason=reason)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/machines/{machine_id}/recover", response_model=Machine)
+def recover_machine_endpoint(machine_id: str):
+    try:
+        return ProductionStateService.recover_machine(machine_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/api/jobs", response_model=List[Job])
 def get_jobs():
@@ -60,15 +79,32 @@ def register_job(job: Job):
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/api/schedules/recalculate", response_model=ScheduleResult)
-def recalculate_schedule(algorithm: str = Query("CPSAT")):
+def recalculate_schedule(
+    algorithm: str = Query("CPSAT"),
+    expected_state_version: Optional[int] = Query(None),
+    expected_sim_time: Optional[float] = Query(None)
+):
     try:
-        res = ProductionStateService.recalculate_schedule(sim_time=simulator.sim_time, algorithm=algorithm)
+        if not isinstance(expected_state_version, int):
+            expected_state_version = None
+        if not isinstance(expected_sim_time, (int, float)):
+            expected_sim_time = None
+        simulator.load_state()
+        res = ProductionStateService.recalculate_schedule(
+            sim_time=simulator.sim_time,
+            algorithm=algorithm,
+            expected_state_version=expected_state_version,
+            expected_sim_time=expected_sim_time
+        )
         return res
+    except StaleScheduleError as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/api/schedules/compare")
 def compare_all_algorithms():
+    simulator.load_state()
     jobs = ProductionStateService.get_all_jobs()
     machines = ProductionStateService.get_all_machines()
     current_time = simulator.sim_time
@@ -85,13 +121,17 @@ def compare_all_algorithms():
 
 @app.get("/api/ml/recommend")
 def recommend_strategy():
+    simulator.load_state()
     jobs = ProductionStateService.get_all_jobs()
     machines = ProductionStateService.get_all_machines()
     return ml_recommender.recommend(jobs, machines, simulator.sim_time)
 
 @app.post("/api/simulation/advance")
 def advance_simulation(step_minutes: float = Query(5.0)):
-    return simulator.advance_time(step_minutes)
+    try:
+        return simulator.advance_time(step_minutes)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/api/simulation/reset")
 def reset_simulation():
@@ -116,4 +156,4 @@ def reset_demo_workload():
 
 @app.get("/api/simulation/status")
 def get_simulation_status():
-    return simulator.get_status()
+    return simulator.load_state()

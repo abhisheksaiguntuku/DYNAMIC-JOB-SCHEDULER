@@ -44,5 +44,14 @@ class ScheduleRecordModel(Base):
     explanation_json = Column(JSON, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+class SimulationStateModel(Base):
+    __tablename__ = "simulation_state"
+    id = Column(Integer, primary_key=True, default=1)
+    sim_time = Column(Float, default=0.0, nullable=False)
+    is_running = Column(Boolean, default=False, nullable=False)
+    speed_multiplier = Column(Float, default=1.0, nullable=False)
+    state_version = Column(Integer, default=1, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
 def init_db():
     Base.metadata.create_all(bind=engine)

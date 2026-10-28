@@ -15,7 +15,7 @@ import pytest
 from app.simulation.engine import DiscreteEventSimulator
 from app.core.state_service import ProductionStateService
 from app.scheduling.validator import ScheduleValidator
-from app.database.db import init_db, SessionLocal, MachineModel, JobModel, ScheduleRecordModel
+from app.database.db import init_db, SessionLocal, MachineModel, JobModel, ScheduleRecordModel, SimulationStateModel
 from app.schemas.models import MachineStatus, OperationStatus, JobStatus
 
 
@@ -28,6 +28,7 @@ def clean_db():
     """Wipe all tables before every test – ensures full isolation."""
     init_db()
     db = SessionLocal()
+    db.query(SimulationStateModel).delete()
     db.query(ScheduleRecordModel).delete()
     db.query(JobModel).delete()
     db.query(MachineModel).delete()
@@ -35,6 +36,7 @@ def clean_db():
     db.close()
     yield
     db = SessionLocal()
+    db.query(SimulationStateModel).delete()
     db.query(ScheduleRecordModel).delete()
     db.query(JobModel).delete()
     db.query(MachineModel).delete()

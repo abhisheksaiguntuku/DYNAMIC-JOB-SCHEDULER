@@ -1,5 +1,5 @@
 from typing import List, Dict, Tuple
-from app.schemas.models import ScheduledTask, ScheduleMetrics, Machine
+from app.schemas.models import ScheduledTask, ScheduleMetrics, Machine, MachineStatus
 
 class ScheduleValidator:
     @staticmethod
@@ -9,6 +9,7 @@ class ScheduleValidator:
         current_time: float = 0.0
     ) -> Tuple[bool, List[str]]:
         errors: List[str] = []
+        machine_map: Dict[str, Machine] = {m.machine_id: m for m in machines}
         
         # 1. Check machine exclusivity (no two tasks on the same machine overlap)
         tasks_by_machine: Dict[str, List[ScheduledTask]] = {}
@@ -27,6 +28,19 @@ class ScheduleValidator:
                         f"Task {t1.job_id}-Op{t1.operation_sequence} [{t1.start_time:.1f}-{t1.end_time:.1f}] "
                         f"overlaps with {t2.job_id}-Op{t2.operation_sequence} [{t2.start_time:.1f}-{t2.end_time:.1f}]"
                     )
+
+        # 2. Check machine availability / downtime window for pending future tasks
+        for t in tasks:
+            if not t.is_completed and not t.is_running:
+                m = machine_map.get(t.machine_id)
+                if m and m.status in (MachineStatus.DOWN, MachineStatus.MAINTENANCE):
+                    down_until = current_time + (m.remaining_processing_time if m.remaining_processing_time > 1e-4 else 1e6)
+                    if t.start_time < down_until - 1e-4:
+                        errors.append(
+                            f"Machine Downtime Violation on {t.machine_id}: "
+                            f"Pending Task {t.job_id}-Op{t.operation_sequence} scheduled at {t.start_time:.1f} "
+                            f"while machine is {m.status.value} until {down_until:.1f}"
+                        )
 
         # 2. Check operation precedence per job
         tasks_by_job: Dict[str, List[ScheduledTask]] = {}

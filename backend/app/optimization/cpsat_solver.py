@@ -44,9 +44,10 @@ class CPSATSchedulingOptimizer:
         scheduled_tasks: List[ScheduledTask] = []
         op_start_vars: Dict[Tuple[str, int], cp_model.IntVar] = {}
         op_end_vars: Dict[Tuple[str, int], cp_model.IntVar] = {}
+        op_presence_vars: Dict[Tuple[str, int, str], cp_model.IntVar] = {}
         job_end_vars: Dict[str, Any] = {}
         
-        # 1. Handle already completed & running tasks
+        # 1. Handle already completed, running, & down/maintenance tasks
         for m in machines:
             if m.status == MachineStatus.BUSY and m.remaining_processing_time > 1e-4:
                 rem_dur_int = max(1, int(round(m.remaining_processing_time * SCALE)))
@@ -55,6 +56,16 @@ class CPSATSchedulingOptimizer:
                 # Create a fixed busy interval for this machine
                 fixed_interval = model.NewIntervalVar(busy_start, rem_dur_int, busy_end, f"busy_{m.machine_id}")
                 machine_intervals[m.machine_id].append(fixed_interval)
+            elif m.status in (MachineStatus.DOWN, MachineStatus.MAINTENANCE):
+                if m.remaining_processing_time > 1e-4:
+                    down_dur_int = max(1, int(round(m.remaining_processing_time * SCALE)))
+                else:
+                    # Indefinite breakdown blocks the machine across the active horizon
+                    down_dur_int = max(1, horizon - cur_t_int)
+                down_start = cur_t_int
+                down_end = cur_t_int + down_dur_int
+                down_interval = model.NewIntervalVar(down_start, down_dur_int, down_end, f"down_{m.machine_id}")
+                machine_intervals[m.machine_id].append(down_interval)
                 
         # 2. Build decision variables for all pending/future operations
         for j in jobs:
@@ -88,9 +99,15 @@ class CPSATSchedulingOptimizer:
                     s_int = int(round((op.start_time or current_time) * SCALE))
                     # Machine is locked for remaining duration
                     m_running = all_machines.get(op.machine_id)
-                    rem = m_running.remaining_processing_time if m_running else op.duration
+                    rem = m_running.remaining_processing_time if (m_running and m_running.remaining_processing_time > 1e-4) else op.duration
                     e_int = cur_t_int + int(round(rem * SCALE))
                     prev_end_var = e_int
+                    # Ensure machine is also blocked during running op even if machine status wasn't BUSY
+                    if not (m_running and m_running.status == MachineStatus.BUSY and m_running.remaining_processing_time > 1e-4):
+                        run_dur_int = max(1, e_int - cur_t_int)
+                        run_interval = model.NewIntervalVar(cur_t_int, run_dur_int, e_int, f"run_{j.job_id}_{op.sequence}")
+                        if op.machine_id in machine_intervals:
+                            machine_intervals[op.machine_id].append(run_interval)
                     scheduled_tasks.append(
                         ScheduledTask(
                             job_id=j.job_id,
@@ -131,6 +148,7 @@ class CPSATSchedulingOptimizer:
                     opt_intervals = []
                     for alt_m in eligible_machines:
                         presence = model.NewBoolVar(f"pres_{j.job_id}_{op.sequence}_{alt_m}")
+                        op_presence_vars[(j.job_id, op.sequence, alt_m)] = presence
                         opt_interval = model.NewOptionalIntervalVar(
                             start_var, dur_int, end_var, presence, f"opt_{j.job_id}_{op.sequence}_{alt_m}"
                         )
@@ -212,9 +230,8 @@ class CPSATSchedulingOptimizer:
                         eligible = [op.machine_id] + [m for m in op.alternative_machines if m in all_machines]
                         if len(eligible) > 1:
                             for alt_m in eligible:
-                                pres_var = model.GetBoolVarValue(f"pres_{j.job_id}_{op.sequence}_{alt_m}") if hasattr(solver, 'GetBoolVarValue') else None
-                                # OR-Tools provides BooleanValue
-                                if solver.BooleanValue(model.NewBoolVar(f"pres_{j.job_id}_{op.sequence}_{alt_m}")):
+                                pres_var = op_presence_vars.get((j.job_id, op.sequence, alt_m))
+                                if pres_var is not None and solver.BooleanValue(pres_var):
                                     chosen_m = alt_m
                                     break
                                     

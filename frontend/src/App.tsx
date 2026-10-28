@@ -172,6 +172,20 @@ export default function App() {
     }
   };
 
+  const toggleMachineDowntime = async (m: Machine) => {
+    setErrorMessage(null);
+    try {
+      if (m.status === 'DOWN' || m.status === 'MAINTENANCE') {
+        await axios.post(`${API_BASE}/machines/${m.machine_id}/recover`);
+      } else {
+        await axios.post(`${API_BASE}/machines/${m.machine_id}/downtime?duration=20`);
+      }
+      await runRecalculation();
+    } catch (e: any) {
+      setErrorMessage(e.response?.data?.detail || "Machine state update failed.");
+    }
+  };
+
   const resetToDemo = async () => {
     if (!window.confirm("Reset all jobs to the original 10 baseline demo jobs? Any newly registered dynamic jobs will be removed. Benchmarks remain completely preserved.")) {
       return;
@@ -759,6 +773,7 @@ export default function App() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px' }}>
             {machines.map(m => {
               const utilVal = schedule?.metrics?.machine_utilization?.[m.machine_id] ?? 0;
+              const isDown = m.status === 'DOWN' || m.status === 'MAINTENANCE';
               return (
                 <div 
                   key={m.machine_id}
@@ -766,7 +781,7 @@ export default function App() {
                     backgroundColor: '#0f172a', 
                     padding: '10px 12px', 
                     borderRadius: '6px', 
-                    border: m.status === 'BUSY' ? '1px solid #f59e0b' : '1px solid #334155',
+                    border: isDown ? '1px solid #f43f5e' : m.status === 'BUSY' ? '1px solid #f59e0b' : '1px solid #334155',
                     position: 'relative'
                   }}
                 >
@@ -777,8 +792,8 @@ export default function App() {
                       fontWeight: 'bold', 
                       padding: '2px 5px', 
                       borderRadius: '3px',
-                      backgroundColor: m.status === 'BUSY' ? '#78350f' : '#064e3b',
-                      color: m.status === 'BUSY' ? '#fcd34d' : '#6ee7b7'
+                      backgroundColor: isDown ? '#881337' : m.status === 'BUSY' ? '#78350f' : '#064e3b',
+                      color: isDown ? '#fda4af' : m.status === 'BUSY' ? '#fcd34d' : '#6ee7b7'
                     }}>
                       {m.status}
                     </span>
@@ -798,6 +813,29 @@ export default function App() {
                       Job {m.current_job_id} (rem: {m.remaining_processing_time}m)
                     </div>
                   )}
+                  {isDown && (
+                    <div style={{ marginTop: '6px', fontSize: '10px', color: '#fda4af', backgroundColor: '#4c0519', padding: '3px', borderRadius: '3px' }}>
+                      Down (repair: {m.remaining_processing_time}m)
+                    </div>
+                  )}
+                  <div style={{ marginTop: '6px' }}>
+                    <button
+                      onClick={() => toggleMachineDowntime(m)}
+                      style={{
+                        width: '100%',
+                        fontSize: '10px',
+                        padding: '3px 6px',
+                        borderRadius: '4px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        backgroundColor: isDown ? '#059669' : '#334155',
+                        color: isDown ? '#fff' : '#cbd5e1'
+                      }}
+                    >
+                      {isDown ? 'Recover M/C' : 'Sim Breakdown (+20m)'}
+                    </button>
+                  </div>
                 </div>
               );
             })}
@@ -960,6 +998,30 @@ export default function App() {
                         boxShadow: '0 0 6px #f43f5e'
                       }}
                     />
+                  )}
+
+                  {/* Machine Downtime Window Block */}
+                  {(m.status === 'DOWN' || m.status === 'MAINTENANCE') && m.remaining_processing_time > 0 && (
+                    <div
+                      title={`${m.machine_id} DOWN until ${currentSim + m.remaining_processing_time}m`}
+                      style={{
+                        position: 'absolute',
+                        left: `${(currentSim / maxHorizon) * 100}%`,
+                        width: `${Math.min(100 - (currentSim / maxHorizon) * 100, (m.remaining_processing_time / maxHorizon) * 100)}%`,
+                        height: '100%',
+                        backgroundColor: 'rgba(244, 63, 94, 0.28)',
+                        border: '1px dashed #f43f5e',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '9px',
+                        color: '#fda4af',
+                        fontWeight: 700,
+                        zIndex: 5
+                      }}
+                    >
+                      DOWN ({m.remaining_processing_time}m)
+                    </div>
                   )}
 
                   {/* Idle Machine Notice */}
