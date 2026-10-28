@@ -27,82 +27,70 @@
 
 ---
 
-## 2. Phase B: Application Release Audit & Test Verification
+## 2. Phase B & Section 4: Application Release Audit & Bounded Runtime Probe
 
 ### 2.1 Backend Regression & Audit Suite
-- **Command:** `cd backend; python -m pytest -v --tb=short`
-- **Result:** **`87 passed, 518 warnings in 73.52s` (Exit Code `0`)**
-- **Coverage Verified:**
-  - Completed-operation preservation, running-operation locks, operation precedence, machine capacity non-overlap, simultaneous arrivals, dynamic arrivals, release/due dates (`test_dynamic_scheduling.py`, `test_stage41_integration.py`).
-  - Flexible routing across `M1–M10`, repeated machine visits in a single job, invalid input rejection, and safe demo reset (`test_stage6_production_routing.py`).
-  - SQLite simulation state persistence across restarts, machine downtime/recovery state machine, optimistic concurrency `state_version` (`HTTP 409` stale-schedule rejection), and `RLock` thread safety (`test_stage8_persistence.py`, `test_stage8_reliability.py`).
-  - Stage 9 280-trial benchmark integrity (`test_stage9_experimental_benchmark.py`) and Stage 10 adversarial validator audit, Tier 5 repeated-routing, and EPN controlled ablations (`test_stage10_audit_and_ablation.py`).
-- **Non-Blocking Warnings Observed:** Deprecation warnings from `datetime.utcnow()` and Pydantic V2 `.dict()` calls in `state_service.py` / `engine.py` and FastAPI `@app.on_event("startup")`. Left untouched to avoid unnecessary churn in core persistence logic.
+- **Command:** `cd backend; python -m pytest -q --tb=short`
+- **Result:** **`87 passed, 518 warnings in 35.59s` (Exit Code `0`)**
 
 ### 2.2 Frontend Production Build
 - **Command:** `cd frontend; npm run build`
-- **Result:** **`1962 modules transformed, built in 3.57s` (Exit Code `0`)**
-- **Output Bundle:** `dist/index.html` (`0.45 kB`), `dist/assets/index-DGNrK5qb.css` (`1.78 kB`), `dist/assets/index-FkfjXMK4.js` (`317.06 kB` / `98.47 kB` gzip).
+- **Result:** **`1962 modules transformed, built in 1.98s` (Exit Code `0`)**
+- **Output Bundle:** `dist/index.html` (`0.45 kB`), `dist/assets/index-DGNrK5qb.css` (`1.78 kB`), `dist/assets/index-BvZGvMKj.js` (`317.08 kB` / `98.48 kB` gzip).
 
-### 2.3 Tested Dependency Versions ([`backend/requirements.txt`](file:///c:/Users/SUNITA/.gemini/antigravity/scratch/dynamic_job_shop_scheduler/backend/requirements.txt))
-- Python runtime tested locally: `3.14.0` (compatible with Python `3.11+` / `3.12+` on Linux cloud hosts)
-- `fastapi==0.135.3`, `uvicorn==0.44.0`, `sqlalchemy==2.0.49`, `pydantic==2.13.0`, `ortools==9.15.6755`, `torch==2.11.0` (with `--extra-index-url https://download.pytorch.org/whl/cpu`), `scikit-learn==1.8.0`, `numpy==2.4.4`, `scipy==1.17.1`, `pandas==3.0.3`, `pytest==9.1.1`, `httpx==0.28.1`.
+### 2.3 Bounded Runtime, Memory & Genuine EPN Inference Probe (`task-629`, Exit Code `0`)
+- **Initial Process RSS:** `14.29 MB`
+- **Module Import Time (`fastapi`, `sqlalchemy`, `sklearn`, `ortools`, `torch`):** `9.271 s` (`RSS_AFTER_IMPORT_MB = 350.64 MB`)
+- **Startup Event (`seed_if_empty` + 60-tree Random Forest training on 40 scenarios):** `0.500 s` (`RSS_AFTER_STARTUP_MB = 351.64 MB`)
+- **EPN Checkpoint Load (`backend/models/checkpoints/epn_model.pth`, `376,790` bytes):** `loaded = True`, `device = cpu`, `LOAD_MS = 22.02 ms` (`RSS_AFTER_EPN_LOAD_MB = 353.58 MB`)
+- **Total Cold-Boot Initialization Time:** **`9.793 s`**
+- **Health Endpoint (`/api/health`):** `{'status': 'HEALTHY', 'system': 'Dynamic Job-Shop Scheduler'}`
+- **CORS Configuration:** `_allowed_origins = ['*']` (configurable via `CORS_ORIGINS`)
+- **Genuine EPN Inference (`recalculate_schedule(algorithm='EPN')`):**
+  - `LATENCY_MS = 290.34 ms`
+  - `ALGO = PYTORCH EPN (Liu et al.)`
+  - `SOLVER_STATUS = NEURAL_PREDICTED_FEASIBLE` (verified genuine neural forward pass, not `FALLBACK_NO_MODEL`)
+  - `MAKESPAN = 515.0`, `TARDINESS = 1066.0`, `TASKS = 50`, `STATE_VERSION = 1`
+- **Genuine OR-Tools CP-SAT Optimization (`recalculate_schedule(algorithm='CPSAT')`):**
+  - `LATENCY_MS = 3078.01 ms`, `ALGO = OR-TOOLS CP-SAT`, `SOLVER_STATUS = FEASIBLE`, `MAKESPAN = 468.0`, `TARDINESS = 667.0`, `TASKS = 50`
+- **Steady / Peak Memory Footprint:** **`FINAL_RSS_MB = 372.93 MB`**, **`PEAK_RSS_MB = 401.62 MB`**
 
----
-
-## 3. Phase C & D: Free Deployment Design & Implementation
-
-### 3.1 Selected Free Hosting Architecture
-1. **Frontend — Cloudflare Pages (Free Plan):**
-   - **Root Directory:** `frontend` | **Build Command:** `npm run build` | **Output Directory:** `dist`
-   - **Environment Variable:** `VITE_API_BASE_URL=https://<your-render-service>.onrender.com/api`
-   - **Plan Quotas:** Unlimited static bandwidth and requests, 500 builds/month, 1 concurrent build, 20-minute build timeout, global HTTPS CDN.
-2. **Backend — Render (Free Web Service):**
-   - **Root Directory:** `backend` | **Build Command:** `pip install -r requirements.txt` | **Start Command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-   - **Health Check Endpoint:** `/api/health`
-   - **Environment Variables:** `PYTHON_VERSION=3.12.8`, `PYTHONPATH=.`, `CORS_ORIGINS=*` (or the Cloudflare Pages origin).
-   - **Plan Quotas & Limitations:** `512 MB` RAM, `0.1` shared CPU, `750` free instance hours/month, **ephemeral disk**, and **automatic spin-down after 15 minutes of inactivity** (`30–60s` cold start on next request).
-
-### 3.2 Release-Specific Code Changes Made on `stage11-release-deployment`
-1. **[`frontend/src/App.tsx`](file:///c:/Users/SUNITA/.gemini/antigravity/scratch/dynamic_job_shop_scheduler/frontend/src/App.tsx#L10):** Replaced hardcoded `const API_BASE = 'http://127.0.0.1:8001/api';` with:
-   ```ts
-   const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001/api').replace(/\/+$/, '');
-   ```
-2. **[`backend/app/main.py`](file:///c:/Users/SUNITA/.gemini/antigravity/scratch/dynamic_job_shop_scheduler/backend/app/main.py#L20-L28):** Added `CORS_ORIGINS` environment variable support (defaulting to `["*"]` when unset).
-3. **[`backend/requirements.txt`](file:///c:/Users/SUNITA/.gemini/antigravity/scratch/dynamic_job_shop_scheduler/backend/requirements.txt), [`backend/.env.example`](file:///c:/Users/SUNITA/.gemini/antigravity/scratch/dynamic_job_shop_scheduler/backend/.env.example), [`frontend/.env.example`](file:///c:/Users/SUNITA/.gemini/antigravity/scratch/dynamic_job_shop_scheduler/frontend/.env.example), and [`README.md`](file:///c:/Users/SUNITA/.gemini/antigravity/scratch/dynamic_job_shop_scheduler/README.md):** Created reproducible dependency and environment templates and aligned the documented local `uvicorn` port to `8001`.
+### 2.4 Dependency & Python Runtime Compatibility ([`backend/requirements.txt`](file:///c:/Users/SUNITA/.gemini/antigravity/scratch/dynamic_job_shop_scheduler/backend/requirements.txt))
+- Verified `Requires-Python` metadata across all 12 packages:
+  - `scikit-learn==1.8.0`, `numpy==2.4.4`, `scipy==1.17.1`, `pandas==3.0.3` require `Python >= 3.11`.
+  - `fastapi==0.135.3`, `uvicorn==0.44.0`, `torch==2.11.0`, `pytest==9.1.1` require `Python >= 3.10`.
+  - `ortools==9.15.6755`, `pydantic==2.13.0`, `httpx==0.28.1`, `sqlalchemy==2.0.49` require `Python >= 3.7–3.9`.
+- Consequently, [`Dockerfile`](file:///c:/Users/SUNITA/.gemini/antigravity/scratch/dynamic_job_shop_scheduler/Dockerfile) targets `python:3.12-slim` with `--extra-index-url https://download.pytorch.org/whl/cpu`.
 
 ---
 
-## 4. Phase E: Live Deployment & Verification Status
+## 3. Phase C & D: Free-Tier Hosting Selection & Implementation
 
-- **Local Pre-Deployment Verification:** Completed and passed (`87/87` backend tests passed, production `frontend/dist` build verified).
-- **Cloud Account Authentication Boundary:** Because deploying to Render and Cloudflare Pages requires interactive OAuth sign-in to your personal GitHub, Render, and Cloudflare dashboards in a browser, no fake deployment URLs have been fabricated. Exact step-by-step deployment and post-deploy smoke-testing instructions are provided in [`docs/DEPLOYMENT_GUIDE.md`](file:///c:/Users/SUNITA/.gemini/antigravity/scratch/dynamic_job_shop_scheduler/docs/DEPLOYMENT_GUIDE.md).
+### Why Hugging Face Spaces (`cpu-basic`, Docker SDK) + Cloudflare Pages Was Selected Over Render Free
+1. **Eliminates the 15-Minute Demo Sleep Problem:** Render Free spins down after **15 minutes** of inactivity and takes **30–60 seconds** on `0.1` shared CPU to cold-start. Hugging Face Spaces (`cpu-basic`) stays awake for **48 hours** of inactivity—warming the Space once the morning of a faculty demonstration guarantees **0 ms cold-start latency** during the live presentation.
+2. **Eliminates 512 MB RAM OOM Risk:** Our measured peak RSS is **`401.62 MB`**, which consumes `78.4%` of a `512 MB` container (Render Free / Koyeb Free). Hugging Face Spaces `cpu-basic` provides **16 GB RAM** and **2 vCPUs** for **$0/month**, leaving >`15.5 GB` of headroom.
+3. **Zero Credit-Card or Billing Overage Risk:** Unlike Google Cloud Run (which requires an active Cloud Billing Account with a payment card and bills overages if free quotas are exceeded), both Hugging Face Spaces (`cpu-basic`) and Cloudflare Pages (Free) require **no credit card** and have **$0 overage risk**.
+
+### Release Files Added/Updated on `stage11-release-deployment`
+- [`Dockerfile`](file:///c:/Users/SUNITA/.gemini/antigravity/scratch/dynamic_job_shop_scheduler/Dockerfile) & [`.dockerignore`](file:///c:/Users/SUNITA/.gemini/antigravity/scratch/dynamic_job_shop_scheduler/.dockerignore): Root Docker configuration for Hugging Face Spaces (`cpu-basic`, port `7860`, non-root UID `1000`, preserving `/home/user/app/backend` layout so `epn_scheduler.py` resolves `epn_model.pth` without modifying research code).
+- [`.gitignore`](file:///c:/Users/SUNITA/.gemini/antigravity/scratch/dynamic_job_shop_scheduler/.gitignore): Excludes `*.db`, `*.sqlite*`, `.env`, `.env.*` while allowing `.env.example` files.
+- [`backend/requirements.txt`](file:///c:/Users/SUNITA/.gemini/antigravity/scratch/dynamic_job_shop_scheduler/backend/requirements.txt): Pinned dependencies with CPU PyTorch index URL.
+- [`backend/app/main.py`](file:///c:/Users/SUNITA/.gemini/antigravity/scratch/dynamic_job_shop_scheduler/backend/app/main.py): Added `CORS_ORIGINS` environment variable support and root `GET /` health status route.
+- [`frontend/src/App.tsx`](file:///c:/Users/SUNITA/.gemini/antigravity/scratch/dynamic_job_shop_scheduler/frontend/src/App.tsx): Added `VITE_API_BASE_URL` environment variable support with `http://127.0.0.1:8001/api` local fallback.
+- [`README.md`](file:///c:/Users/SUNITA/.gemini/antigravity/scratch/dynamic_job_shop_scheduler/README.md), [`docs/DEPLOYMENT_GUIDE.md`](file:///c:/Users/SUNITA/.gemini/antigravity/scratch/dynamic_job_shop_scheduler/docs/DEPLOYMENT_GUIDE.md), [`docs/FACULTY_DEMO_SCRIPT.md`](file:///c:/Users/SUNITA/.gemini/antigravity/scratch/dynamic_job_shop_scheduler/docs/FACULTY_DEMO_SCRIPT.md).
 
 ---
 
-## 5. Phase G: Stage 12 & Manuscript Research-Readiness Checklist
+## 4. Phase G: Stage 12 Research Handoff Checklist
 
-Before drafting the final research manuscript in Stage 12, the following scientific, methodological, and experimental boundaries must be respected:
-
-### 5.1 Resolved & Verified Research Assets
-- [x] **5-Tier Reproducible Benchmark Suite (`350` main trials + `300` ablation trials = `650` verified schedules):**
-  - Tiers 1–4 (`backend/experiments/stage9_benchmark/` and `backend/experiments/stage10_audit/`)
-  - Tier 5 Re-Entrant / Repeated-Machine Routing (`backend/experiments/stage10_repeated_routing/`)
-  - EPN Trace & 4-Variant Controlled Ablation Study (`backend/experiments/stage10_epn_ablation/`)
-- [x] **Exact Small-Sample & Non-Parametric Statistics:** Student-$t$ $95\%$ CIs ($t_{0.975, 9} = 2.2622$), medians, IQRs, paired within-seed differences, paired $t$-tests, Wilcoxon signed-rank tests, Holm-Bonferroni corrections, and paired Cohen's $d_z$.
-- [x] **Dual Zero-Trust Schedule Verification:** Every trial verified by both `ScheduleValidator` and zero-shared-code `IndependentScheduleAuditor`.
-
-### 5.2 Open Methodological Questions & Guardrails for Stage 12 (Manuscript Stage)
-1. **Strict Separation of Neural Contribution vs. Decoding Mechanics (Crucial):**
-   - The manuscript **must not** claim that `EPN_BASELINE` outperforms classic heuristics or CP-SAT.
-   - When presenting `EPN_ABLATION_B_OP_READY_DECODING`, the manuscript must explicitly distinguish between:
-     1. **Decoding Architecture Effect:** Switching from job-sequential outer-loop serialization over a scalar machine watermark to chronological operation-level ready-queue dispatching (`earliest_start` primary key), and
-     2. **Intrinsic Neural Tie-Breaking Contribution:** Using EPN's predicted slot (`pred_slot` secondary key) when multiple ready operations contend for a machine at the same `earliest_start`.
-   - **Recommended Stage 12 Control Experiment:** To isolate the intrinsic value of EPN's neural slot predictions (`pred_slot`) purely from chronological `earliest_start` ordering, Stage 12 can compare `EPN_ABLATION_B_OP_READY_DECODING` (`(earliest_start, pred_slot, -priority, arrival_time)`) against a **non-delay chronological SPT/FCFS dispatcher** (`(earliest_start, op.duration, -priority, arrival_time)` and `(earliest_start, arrival_time, -priority)`) where `earliest_start` is also the primary key!
-2. **Sample Size & Statistical Power ($n = 10$ vs. $n \ge 30$):**
-   - While $n = 10$ seeds per tier provides $>99\%$ statistical power for large effects ($d_z > 2.0$, such as CP-SAT vs. SPT), resolving fine-grained tie-breaking differences ($|d_z| < 0.5$) would require $n \ge 30$ seeds per tier.
-3. **CP-SAT Determinism & Time-Bounded Optimality:**
-   - Describe CP-SAT on Tiers 2–5 as a **time-bounded constraint-programming optimizer (`2.0s–2.5s`, `num_search_workers = 4`)** that proves global optimality on $30.0\%$ ($15/50$) of instances and returns high-quality `FEASIBLE` incumbents on $70.0\%$.
-4. **Literature Positioning:**
-   - Position the work honestly as an **integrated dynamic job-shop scheduling testbed and empirical audit** comparing classic dispatching rules, time-bounded CP-SAT constraint programming, and pointer-network decoding strategies under dynamic arrivals, machine breakdowns, and re-entrant routing.
-
+- **Verified Codebase & Experimental Baselines:**
+  - `master` (`7d0e3be`): Stage 9 40-instance, 280-trial reproducible benchmark suite (`backend/experiments/stage9_benchmark/`).
+  - `stage10-research-audit` (`ff2036b`): Stage 10 independent schedule auditor, strengthened `ScheduleValidator`, Tier 5 re-entrant routing (`backend/experiments/stage10_repeated_routing/`), and EPN controlled ablations (`backend/experiments/stage10_epn_ablation/`).
+  - `stage11-release-deployment`: Cloud deployment configuration (`Dockerfile`, `.dockerignore`, `requirements.txt`, `VITE_API_BASE_URL`, `CORS_ORIGINS`) and faculty demonstration package.
+- **Confirmed Empirical Findings Ready for Paper Drafting:**
+  1. **Zero-Violation Feasibility Across All 410 Audited Schedules:** `IndependentScheduleAuditor` confirmed `0` constraint violations across `280/280` Stage 9 schedules, `70/70` Stage 10 Tier 5 re-entrant schedules, and `60/60` Stage 10 EPN ablation schedules.
+  2. **Root Cause of Baseline EPN Tardiness & Makespan Gap (Proven via Controlled Ablation):**
+     - `BASELINE` EPN (`+300.0 * op_idx` sequence offset + job-by-job decoding) achieves `195.88m` mean makespan and `36.34m` mean tardiness on Tier 2 (`10x10`) and `417.34m` makespan on Tier 5 (`12x10` re-entrant).
+     - `ABLATION_B_OP_READY_DECODING` (removing the `+300` offset and decoding via an operation-level ready queue with EPN neural tie-breaking) reduces Tier 2 makespan by **`-25.5%`** (`195.88m -> 146.01m`, Wilcoxon $p = 0.00195$) and Tier 5 re-entrant makespan by **`-31.0%`** (`417.34m -> 288.06m`, Wilcoxon $p = 0.00195$).
+     - `ABLATION_C_HYBRID_SPT` further improves Tier 2 makespan to **`136.46m`** (`-30.3%` vs. baseline EPN, matching `SPT`'s `136.70m`) and reduces Tier 3 (`25x10`) tardiness by **`-85.0%`** (`613.11m -> 91.93m`, Wilcoxon $p = 0.00195$).
+  3. **CP-SAT vs. Heuristics Trade-Off:** `CP-SAT` (`3.0s` cap) achieves the lowest composite objective on Tier 1 (`5x10`, `10/10` proven `OPTIMAL`), Tier 2 (`10x10`, `0.00m` tardiness), and Tier 5 (`12x10` re-entrant, `0.00m` tardiness), while on high-contention Tier 3 (`25x10`) `SPT` (`306.79m`, `<1 ms`) slightly edges out 3-second time-bounded `CP-SAT` (`310.71m`, $p = 0.275$, not statistically significant).

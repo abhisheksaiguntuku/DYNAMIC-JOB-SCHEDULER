@@ -48,6 +48,15 @@ def startup_event():
 def shutdown_event():
     simulator.save_state()
 
+@app.get("/")
+def root_status():
+    return {
+        "status": "HEALTHY",
+        "system": "Dynamic Job-Shop Scheduler",
+        "health_endpoint": "/api/health",
+        "docs_endpoint": "/docs"
+    }
+
 @app.get("/api/health")
 def health_check():
     return {"status": "HEALTHY", "system": "Dynamic Job-Shop Scheduler"}

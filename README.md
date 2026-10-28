@@ -1,3 +1,13 @@
+---
+title: Dynamic Job-Shop Scheduler API
+emoji: ⚙️
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+suggested_hardware: cpu-basic
+---
+
 # AI-Assisted Dynamic Job-Shop Scheduling & Production Optimization System
 
 A full-stack research and production-scheduling prototype for high-mix, dynamic 10-machine manufacturing environments (`M1–M10`). Built with **FastAPI**, **Google OR-Tools CP-SAT**, **PyTorch Enhanced Pointer Network (EPN)**, **SQLite**, and **React / TypeScript / Vite**.
@@ -16,7 +26,7 @@ A full-stack research and production-scheduling prototype for high-mix, dynamic 
 - **Production Reliability & Zero-Trust Verification:**
   - Persistent simulation clock and optimistic concurrency `state_version` tracking (`HTTP 409` stale-schedule protection).
   - Non-preemptive machine breakdown (`DOWN`) and recovery (`IDLE`) state transitions; completed and running operations are locked across rescheduling.
-  - Dual schedule validation via [`ScheduleValidator`](file:///c:/Users/SUNITA/.gemini/antigravity/scratch/dynamic_job_shop_scheduler/backend/app/scheduling/validator.py) and zero-shared-code [`IndependentScheduleAuditor`](file:///c:/Users/SUNITA/.gemini/antigravity/scratch/dynamic_job_shop_scheduler/backend/app/experiments/stage10_runner.py).
+  - Dual schedule validation via [`ScheduleValidator`](backend/app/scheduling/validator.py) and zero-shared-code [`IndependentScheduleAuditor`](backend/app/experiments/stage10_runner.py).
 
 ---
 
@@ -63,9 +73,12 @@ python -m app.experiments.stage10_runner
 
 ---
 
-## 4. Known Limitations & Cloud Hosting Notes
+## 4. Recommended Free-Tier Cloud Deployment & Known Limitations
 
-- **Ephemeral SQLite on Free Cloud Hosting:** When deployed on Render Free Web Services, the container filesystem is ephemeral and spins down after 15 minutes of inactivity (causing a 30–60s cold-start delay on the next request). Any dynamic jobs or simulation clock advances made during a live session are reset to the 10-job baseline workload (`backend/data/initial_jobs.json`) whenever the container restarts or **Reset Demo** (`POST /api/data/reset-demo`) is clicked.
+- **Recommended Architecture (\$0/month, No Credit Card Required):**
+  - **Backend API:** **Hugging Face Spaces (`cpu-basic`, Docker SDK)** — provides **2 vCPUs, 16 GB RAM, 50 GB ephemeral disk**, and a **48-hour inactivity timeout** (compared to Render Free's 512 MB RAM and 15-minute spin-down), effortlessly accommodating our measured **`401.62 MB` peak RSS** footprint and keeping the container warm throughout a scheduled faculty demonstration day.
+  - **Frontend SPA:** **Cloudflare Pages (Free Plan)** — global CDN with unlimited static bandwidth/requests connected via `VITE_API_BASE_URL=https://<username>-<space-name>.hf.space/api`.
+- **Ephemeral SQLite on Free Container Hosting:** Free container instances use ephemeral storage across container restarts or 48-hour idle sleep cycles. Whenever the container boots or **Reset Demo** (`POST /api/data/reset-demo`) is clicked, `startup_event()` automatically seeds the verified 10-job, 10-machine industrial dataset (`backend/data/initial_jobs.json`, `backend/data/initial_machines.json`).
 - **CP-SAT Time Budget:** Online API calls cap CP-SAT at `2.0s–3.0s` (`num_search_workers = 4`), returning proven `OPTIMAL` schedules on small instances and high-quality time-bounded `FEASIBLE` schedules on contended 10–25 job instances.
 
 ---
