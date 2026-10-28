@@ -1,6 +1,5 @@
 import random
 import numpy as np
-import pandas as pd
 from typing import List, Dict, Tuple
 from sklearn.ensemble import RandomForestClassifier
 from app.schemas.models import Job, Machine

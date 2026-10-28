@@ -1,9 +1,18 @@
+import os
+import tempfile
 from sqlalchemy import create_engine, Column, String, Float, Integer, Boolean, JSON, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker
 from datetime import datetime
 from pathlib import Path
 
-DB_FILE = Path(__file__).resolve().parent.parent.parent / "production_scheduler.db"
+_default_db_dir = Path(__file__).resolve().parent.parent.parent
+if os.getenv("SQLITE_DB_PATH"):
+    DB_FILE = Path(os.getenv("SQLITE_DB_PATH"))
+elif os.access(_default_db_dir, os.W_OK):
+    DB_FILE = _default_db_dir / "production_scheduler.db"
+else:
+    DB_FILE = Path(tempfile.gettempdir()) / "production_scheduler.db"
+
 DATABASE_URL = f"sqlite:///{DB_FILE}"
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})

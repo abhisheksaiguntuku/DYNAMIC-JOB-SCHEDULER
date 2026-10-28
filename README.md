@@ -1,13 +1,3 @@
----
-title: Dynamic Job-Shop Scheduler API
-emoji: ⚙️
-colorFrom: blue
-colorTo: indigo
-sdk: docker
-app_port: 7860
-suggested_hardware: cpu-basic
----
-
 # AI-Assisted Dynamic Job-Shop Scheduling & Production Optimization System
 
 A full-stack research and production-scheduling prototype for high-mix, dynamic 10-machine manufacturing environments (`M1–M10`). Built with **FastAPI**, **Google OR-Tools CP-SAT**, **PyTorch Enhanced Pointer Network (EPN)**, **SQLite**, and **React / TypeScript / Vite**.
@@ -73,12 +63,12 @@ python -m app.experiments.stage10_runner
 
 ---
 
-## 4. Recommended Free-Tier Cloud Deployment & Known Limitations
+## 4. Recommended Free-Tier Cloud Deployment (No Docker Needed) & Known Limitations
 
-- **Recommended Architecture (\$0/month, No Paid Subscription Required):**
-  - **Backend API:** **Render Free Web Service** (`512 MB` RAM, `0.1` CPU, `750` hrs/month, no credit card required) or **Koyeb Free Tier** (`512 MB` RAM, `0.1` vCPU, `1-hour` inactivity timeout). Because `backend/requirements.txt` uses CPU-only PyTorch (`--extra-index-url https://download.pytorch.org/whl/cpu`), our measured **`372.93 MB` steady / `401.62 MB` peak RSS** fits within the `512 MB` RAM limit with all 7 algorithms (`FCFS`, `SPT`, `EDD`, `CR`, `AGING`, `CPSAT`, `EPN`) intact.
+- **Recommended Architecture (\$0/month, No Docker, No Paid Subscription, No Render Limit):**
+  - **Backend API:** **Leapcell (Free Hobby Tier)** (up to `4 GB RAM`, `3 vCPUs`, `20` free projects, `<250 ms` serverless wake-up, native Python runtime, no credit card) or **Koyeb (Free Tier)** (native Python Buildpack via `Procfile` + `requirements.txt`, `1-hour` stay-awake timeout, no credit card).
   - **Frontend SPA:** **Cloudflare Pages (Free Plan)** — global CDN with unlimited static bandwidth/requests connected via `VITE_API_BASE_URL=https://<your-backend-url>/api`.
-- **Ephemeral SQLite & Cold-Start Warm-Up on Free Hosting:** Free container instances use ephemeral storage across container restarts/spin-downs and sleep after inactivity (`15m` on Render Free, `60m` on Koyeb Free). Open `/api/health` **3 minutes before** a live faculty demo to pre-warm the container. Whenever the container boots or **Reset Demo** (`POST /api/data/reset-demo`) is clicked, `startup_event()` automatically seeds the verified 10-job, 10-machine industrial dataset (`backend/data/initial_jobs.json`, `backend/data/initial_machines.json`).
+- **Automatic `/tmp` SQLite Fallback & Ephemeral Storage:** On serverless or read-only container filesystems, [`backend/app/database/db.py`](backend/app/database/db.py) automatically falls back to `/tmp/production_scheduler.db` and seeds the verified 10-job, 10-machine dataset on startup. Locally on Windows, `backend/production_scheduler.db` is used normally.
 - **CP-SAT Time Budget:** Online API calls cap CP-SAT at `2.0s–3.0s` (`num_search_workers = 4`), returning proven `OPTIMAL` schedules on small instances and high-quality time-bounded `FEASIBLE` schedules on contended 10–25 job instances.
 
 ---

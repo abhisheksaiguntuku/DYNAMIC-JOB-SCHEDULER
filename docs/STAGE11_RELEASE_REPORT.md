@@ -66,13 +66,10 @@
 
 ## 3. Phase C & D: Free-Tier Hosting Selection & Implementation
 
-### Why Render Free / Koyeb Free + Cloudflare Pages Was Selected
-1. **Hugging Face Spaces Docker/Gradio Disqualified for Non-PRO Accounts:** Hugging Face now gates `Docker` SDK and standard CPU `Gradio` Spaces behind paid **PRO** subscriptions for non-grandfathered accounts. Per strict project policy ($0 cost, no paid subscriptions), Hugging Face Spaces was immediately ruled out.
-2. **Genuinely Free, No-Subscription Backend Options (`Render Free` & `Koyeb Free`):**
-   - **Render Free Web Service** (`512 MB` RAM, `0.1` CPU, `750` hrs/mo, no credit card required) and **Koyeb Free Tier** (`512 MB` RAM, `0.1` vCPU, `2 GB` SSD, `1-hour` inactivity timeout vs. Render's `15-minute` timeout) are both genuinely free ($0/month) without a paid subscription.
-   - **Verified Memory Fit (`401.62 MB` Peak RSS < `512 MB` Cap):** Because `backend/requirements.txt` pins CPU-only PyTorch (`--extra-index-url https://download.pytorch.org/whl/cpu`), startup RSS is only `~185–200 MB`, and after loading `epn_model.pth` (`368 KB`) and running both `EPN` and `CP-SAT`, steady RSS is **`372.93 MB`** (`401.62 MB` peak)—fitting inside `512 MB` with `~110 MB` headroom.
-   - **Demo Warm-Up Protocol:** Opening `/api/health` **3 minutes before** a scheduled faculty demo warms the container so there is zero cold-start lag during the live presentation.
-3. **Zero Credit-Card or Billing Overage Risk:** Unlike Google Cloud Run (which requires an active Cloud Billing Account and payment card), Render Free + Cloudflare Pages requires no payment card and carries $0 overage risk.
+### Why Native Python on Leapcell / Koyeb + Cloudflare Pages Was Selected (No Docker, No Render Limit)
+1. **Docker Removed (Not Required):** FastAPI, OR-Tools, and CPU PyTorch run natively via `pip install -r requirements.txt` and `uvicorn`. Removing `Dockerfile` avoids Hugging Face Spaces' paid Docker restriction and allows native Python Buildpack execution.
+2. **Render Replaced (Workspace Quota Exhausted & 15m Sleep):** Because your Render account already has an active project consuming the free workspace limit (and Render sleeps every 15 minutes), we selected **Leapcell Free Hobby Tier** (native Python 3.12, up to `4 GB RAM` / `3 vCPU`, up to `20` free projects, `<1s` wake-up, no credit card) and **Koyeb Free Tier** (native Python Buildpack via `Procfile` + `.python-version`, `1-hour` stay-awake window, no credit card).
+3. **Read-Only Serverless SQLite Compatibility (`backend/app/database/db.py`):** Added automatic `/tmp/production_scheduler.db` fallback when the code directory is read-only (as on Leapcell), while keeping `backend/production_scheduler.db` locally on Windows.
 
 ### Release Files Added/Updated on `stage11-release-deployment`
 - [`Dockerfile`](file:///c:/Users/SUNITA/.gemini/antigravity/scratch/dynamic_job_shop_scheduler/Dockerfile) & [`.dockerignore`](file:///c:/Users/SUNITA/.gemini/antigravity/scratch/dynamic_job_shop_scheduler/.dockerignore): Root Docker configuration for Hugging Face Spaces (`cpu-basic`, port `7860`, non-root UID `1000`, preserving `/home/user/app/backend` layout so `epn_scheduler.py` resolves `epn_model.pth` without modifying research code).
