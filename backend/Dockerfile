@@ -32,7 +32,7 @@ USER appuser
 
 # Healthcheck configuration using Python HTTP call
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen(f'http://127.0.0.1:{__import__(\"os\").environ.get(\"PORT\", 8000)}/api/v1/health')" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen(f'http://127.0.0.1:{__import__(\"os\").environ.get(\"PORT\", 8000)}/api/health')" || exit 1
 
 # Expose port and launch Uvicorn using the Koyeb-provided $PORT
 EXPOSE 8000
