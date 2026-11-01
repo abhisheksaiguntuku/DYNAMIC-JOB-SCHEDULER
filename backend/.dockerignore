@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+*.db
+production_scheduler.db
+experiments/
+tests/
+.env
+.venv/
+env/
+

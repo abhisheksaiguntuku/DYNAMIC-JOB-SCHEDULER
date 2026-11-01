@@ -6,16 +6,42 @@ from datetime import datetime
 from pathlib import Path
 
 _default_db_dir = Path(__file__).resolve().parent.parent.parent
-if os.getenv("SQLITE_DB_PATH"):
-    DB_FILE = Path(os.getenv("SQLITE_DB_PATH"))
-elif os.access(_default_db_dir, os.W_OK):
-    DB_FILE = _default_db_dir / "production_scheduler.db"
+
+# Read database URL from environment
+raw_db_url = os.getenv("DATABASE_URL")
+
+if raw_db_url and (raw_db_url.startswith("postgres://") or raw_db_url.startswith("postgresql://") or raw_db_url.startswith("postgresql+")):
+    # Normalize postgres:// to postgresql+psycopg2:// for SQLAlchemy
+    if raw_db_url.startswith("postgres://"):
+        DATABASE_URL = raw_db_url.replace("postgres://", "postgresql+psycopg2://", 1)
+    elif raw_db_url.startswith("postgresql://"):
+        DATABASE_URL = raw_db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+    else:
+        DATABASE_URL = raw_db_url
+
+    # Ensure sslmode=require for Neon / cloud Postgres if not explicitly specified
+    if "sslmode=" not in DATABASE_URL:
+        separator = "&" if "?" in DATABASE_URL else "?"
+        DATABASE_URL = f"{DATABASE_URL}{separator}sslmode=require"
+
+    engine = create_engine(
+        DATABASE_URL,
+        pool_pre_ping=True,
+        pool_recycle=300,
+        pool_size=5,
+        max_overflow=10
+    )
 else:
-    DB_FILE = Path(tempfile.gettempdir()) / "production_scheduler.db"
+    # Preserve existing SQLite configuration
+    if os.getenv("SQLITE_DB_PATH"):
+        DB_FILE = Path(os.getenv("SQLITE_DB_PATH"))
+    elif os.access(_default_db_dir, os.W_OK):
+        DB_FILE = _default_db_dir / "production_scheduler.db"
+    else:
+        DB_FILE = Path(tempfile.gettempdir()) / "production_scheduler.db"
 
-DATABASE_URL = f"sqlite:///{DB_FILE}"
-
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+    DATABASE_URL = f"sqlite:///{DB_FILE}"
+    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
