@@ -22,6 +22,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application source code
 COPY app/ /app/app/
 COPY models/ /app/models/
+COPY data/ /app/data/
 
 # Create a non-root system user and adjust permissions
 RUN useradd -m -u 1000 appuser && \
