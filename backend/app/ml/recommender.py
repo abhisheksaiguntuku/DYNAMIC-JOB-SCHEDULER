@@ -1,6 +1,6 @@
 import random
 import numpy as np
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Any
 from sklearn.ensemble import RandomForestClassifier
 from app.schemas.models import Job, Machine
 from app.scheduling.heuristics import DispatchHeuristicScheduler
