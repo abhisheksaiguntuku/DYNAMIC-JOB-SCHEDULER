@@ -157,12 +157,17 @@ export default function App() {
       setSimStatus(simRes.data);
       setRecommendation(recRes.data);
       if (includeInitialSchedule) {
-        const [schedRes, compRes] = await Promise.all([
-          axios.get(`${API_BASE}/schedules/latest`),
-          axios.get(`${API_BASE}/schedules/compare`)
-        ]);
-        setSchedule(schedRes.data);
-        setComparison(compRes.data);
+        try {
+          const [schedRes, compRes] = await Promise.all([
+            axios.get(`${API_BASE}/schedules/latest`),
+            axios.get(`${API_BASE}/schedules/compare`)
+          ]);
+          setSchedule(schedRes.data || null);
+          setComparison(compRes.data || null);
+        } catch {
+          // Gracefully accept absence of initial schedule without halting shop floor load
+          setSchedule(null);
+        }
       }
     } catch (e: any) {
       setErrorMessage(e?.response?.data?.detail || "Unable to load initial shop floor state.");
@@ -216,11 +221,37 @@ export default function App() {
     try {
       setLoading(true);
       setErrorMessage(null);
-      await axios.post(`${API_BASE}/data/reset-demo`, null, getWriteConfig());
-      await runRecalculation();
+      // Clear stale schedule immediately so Gantt never displays phantom jobs
+      setSchedule(null);
+      const res = await axios.post(`${API_BASE}/data/reset-demo`, null, getWriteConfig());
+      if (res.data?.jobs) {
+        setJobs(res.data.jobs);
+      }
+      if (res.data?.machines) {
+        setMachines(res.data.machines);
+      }
+      if (res.data?.sim_status) {
+        setSimStatus(res.data.sim_status);
+      }
+      if (res.data?.schedule) {
+        setSchedule(res.data.schedule);
+      }
+      // Refresh comparison matrix and recommendation
+      try {
+        const [compRes, recRes] = await Promise.all([
+          axios.get(`${API_BASE}/schedules/compare`),
+          axios.get(`${API_BASE}/ml/recommend`)
+        ]);
+        setComparison(compRes.data || null);
+        setRecommendation(recRes.data || null);
+      } catch {
+        // Non-critical background telemetry refresh
+      }
     } catch (e: any) {
       const msg = formatApiError(e, e.message || "Failed to reset demo.");
       setErrorMessage(msg);
+      // Fallback state synchronization
+      await fetchData(false);
     } finally {
       setLoading(false);
     }
@@ -514,11 +545,19 @@ export default function App() {
 
         {/* Action Controls & Clock */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {/* Demo Access Token Input (in-memory only, for protected write operations) */}
+          {/* Dynamic Workload Indicator */}
           <div style={{ backgroundColor: '#1e293b', padding: '6px 12px', borderRadius: '6px', border: '1px solid #334155', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Info size={14} color="#38bdf8" />
             <span style={{ fontSize: '11px', color: '#94a3b8' }}>
-              Workload: <strong style={{ color: '#cbd5e1' }}>Demo Workload + Dynamic User Jobs</strong>
+              Workload:{' '}
+              <strong style={{ color: '#cbd5e1' }}>
+                {(() => {
+                  if (jobs.length === 0) return 'No Workload (Empty)';
+                  const hasCustom = jobs.some(j => j.job_id.startsWith('JOB_DYN') || !j.job_id.startsWith('JOB_0'));
+                  if (jobs.length === 10 && !hasCustom) return '10 Baseline Demo Jobs';
+                  return 'Demo Workload + Dynamic User Jobs';
+                })()}
+              </strong>
             </span>
             <input
               type="password"

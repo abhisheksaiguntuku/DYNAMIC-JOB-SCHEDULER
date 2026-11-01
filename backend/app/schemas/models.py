@@ -39,7 +39,7 @@ class Job(BaseModel):
     product_type: str
     quantity: int = 1
     arrival_time: float = 0.0
-    due_date: float
+    due_date: Optional[float] = None
     priority: int = 3
     operations: List[Operation]
     status: JobStatus = JobStatus.PENDING
@@ -74,10 +74,14 @@ class ScheduleMetrics(BaseModel):
     total_tardiness: float
     max_tardiness: float
     late_jobs_count: int
+    total_waiting_time: float = 0.0
     avg_waiting_time: float
     max_waiting_time: float
     machine_utilization: Dict[str, float]
+    machine_idle_time: Dict[str, float] = Field(default_factory=dict)
     avg_utilization: float
+    throughput: float = 0.0
+    queue_length: int = 0
     computation_time_ms: float
     solver_status: str
 

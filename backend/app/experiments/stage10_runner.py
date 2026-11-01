@@ -30,6 +30,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+# pyrefly: ignore[missing-import]
 from scipy import stats as scipy_stats
 
 from app.schemas.models import (

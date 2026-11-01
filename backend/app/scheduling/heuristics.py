@@ -27,16 +27,22 @@ class DispatchHeuristicScheduler:
         # 1. Capture locked state of running & completed operations
         scheduled_tasks: List[ScheduledTask] = []
         machine_free_time: Dict[str, float] = {}
+        machine_intervals: Dict[str, List[Tuple[float, float]]] = {m.machine_id: [] for m in machines}
         
         # Machine state baseline
         for m in machines:
             if m.status in (MachineStatus.DOWN, MachineStatus.MAINTENANCE):
                 # Unavailable until recovery or current_time + remaining downtime
                 downtime_rem = m.remaining_processing_time if m.remaining_processing_time > 1e-4 else 1e6
-                machine_free_time[m.machine_id] = current_time + downtime_rem
+                free_at = current_time + downtime_rem
+                machine_free_time[m.machine_id] = free_at
+                machine_intervals[m.machine_id].append((current_time, free_at))
             elif m.status == MachineStatus.BUSY:
                 # Locked until current_time + remaining processing time
-                machine_free_time[m.machine_id] = current_time + m.remaining_processing_time
+                free_at = current_time + m.remaining_processing_time
+                machine_free_time[m.machine_id] = free_at
+                if m.remaining_processing_time > 1e-4:
+                    machine_intervals[m.machine_id].append((current_time, free_at))
             else:
                 machine_free_time[m.machine_id] = current_time
                 
@@ -68,8 +74,9 @@ class DispatchHeuristicScheduler:
                     next_idx = idx + 1
                 elif op.status == OperationStatus.RUNNING:
                     start_t = op.start_time or current_time
-                    m_obj = next((m for m in machines if m.machine_id == op.machine_id), None)
-                    rem_t = m_obj.remaining_processing_time if m_obj else op.duration
+                    run_m_id = op.assigned_machine_id or op.machine_id
+                    m_obj = next((m for m in machines if m.machine_id == run_m_id), None)
+                    rem_t = m_obj.remaining_processing_time if (m_obj and m_obj.remaining_processing_time > 1e-4) else op.duration
                     end_t = current_time + rem_t
                     scheduled_tasks.append(
                         ScheduledTask(
@@ -77,21 +84,36 @@ class DispatchHeuristicScheduler:
                             job_name=j.name,
                             operation_sequence=op.sequence,
                             operation_name=op.name,
-                            machine_id=op.machine_id,
+                            machine_id=run_m_id,
                             start_time=start_t,
-                            end_time=end_t,
+                            end_time=round(end_t, 2),
                             duration=op.duration,
                             is_running=True
                         )
                     )
-                    machine_free_time[op.machine_id] = max(machine_free_time.get(op.machine_id, current_time), end_t)
+                    machine_free_time[run_m_id] = max(machine_free_time.get(run_m_id, current_time), end_t)
+                    machine_intervals.setdefault(run_m_id, []).append((start_t, end_t))
                     latest_comp = max(latest_comp, end_t)
                     next_idx = idx + 1
                     break
             job_next_op_idx[j.job_id] = next_idx
             job_ready_time[j.job_id] = max(latest_comp, current_time)
 
-        # 2. Simulation forward-pass dispatching remaining operations
+        def _earliest_feasible_start(m_id: str, min_ready: float, duration: float) -> float:
+            """
+            Active-schedule gap insertion: finds the earliest time >= max(current_time, min_ready)
+            on machine m_id where [cand, cand + duration] does not overlap any existing commitment.
+            """
+            cand = max(current_time, min_ready)
+            intervals = sorted(machine_intervals.get(m_id, []), key=lambda x: (x[0], x[1]))
+            for iv_s, iv_e in intervals:
+                if cand + duration <= iv_s + 1e-6:
+                    return cand
+                if cand < iv_e:
+                    cand = iv_e
+            return cand
+
+        # 2. Active-schedule forward-pass dispatching remaining operations
         all_machine_ids = {m.machine_id for m in machines}
         while True:
             # Gather all eligible pending operations
@@ -100,52 +122,82 @@ class DispatchHeuristicScheduler:
                 j = job_map[j_id]
                 if idx < len(j.operations):
                     op = j.operations[idx]
-                    eligible_m = [op.machine_id] + [alt for alt in op.alternative_machines if alt in all_machine_ids]
-                    best_m = op.machine_id
-                    best_start = max(job_ready_time[j_id], machine_free_time.get(best_m, current_time))
-                    for cand_m in eligible_m:
-                        cand_start = max(job_ready_time[j_id], machine_free_time.get(cand_m, current_time))
-                        if cand_start < best_start:
+                    eligible_m = [op.machine_id] + [
+                        alt for alt in (op.alternative_machines or [])
+                        if alt in all_machine_ids and alt != op.machine_id
+                    ]
+                    best_m = eligible_m[0]
+                    best_start = _earliest_feasible_start(best_m, job_ready_time[j_id], op.duration)
+                    for cand_m in eligible_m[1:]:
+                        cand_start = _earliest_feasible_start(cand_m, job_ready_time[j_id], op.duration)
+                        if cand_start < best_start - 1e-6:
                             best_start = cand_start
                             best_m = cand_m
                     candidate_ops.append((j, idx, best_start, best_m))
                     
             if not candidate_ops:
                 break # All operations scheduled
+
+            # Active-schedule Giffler-Thompson frontier:
+            # Let min_completion be the earliest possible completion time among all ready candidate operations.
+            # Any candidate whose earliest start is < min_completion is in the active frontier (0);
+            # unready future operations with est_start >= min_completion (1) cannot block an available machine.
+            min_completion = min(est_start + j.operations[idx].duration for j, idx, est_start, _ in candidate_ops)
                 
-            # Sort candidate operations according to the chosen dispatch rule
+            # Sort candidate operations according to the chosen dispatch rule within the active frontier
             def get_sort_key(item: Tuple[Job, int, float, str]):
                 j, idx, est_start, _ = item
                 op = j.operations[idx]
+                in_active_frontier = 0 if est_start < min_completion - 1e-6 else 1
                 rem_work = sum(o.duration for o in j.operations[idx:])
-                time_until_due = j.due_date - est_start
+                has_due = j.due_date is not None and j.due_date > 0
                 waiting_so_far = max(0.0, est_start - j.arrival_time)
+                prio = getattr(j, "priority", 3) or 3
                 
-                if rule.upper() == "FCFS":
-                    return (j.arrival_time, est_start)
-                elif rule.upper() == "SPT":
-                    return (op.duration, est_start)
-                elif rule.upper() == "EDD":
-                    return (j.due_date, est_start)
-                elif rule.upper() == "CR":
-                    # Critical Ratio = (Due Date - Now) / Remaining Work
-                    cr = (time_until_due / rem_work) if rem_work > 0 else 0.0
-                    return (cr, est_start)
-                elif rule.upper() == "AGING":
+                r_upper = rule.upper()
+                if r_upper == "FCFS":
+                    return (in_active_frontier, j.arrival_time, -prio, op.duration, est_start, j.job_id)
+                elif r_upper == "SPT":
+                    due_tie = j.due_date if has_due else float("inf")
+                    return (in_active_frontier, op.duration, -prio, due_tie, j.arrival_time, est_start, j.job_id)
+                elif r_upper == "EDD":
+                    # Agreed policy: if valid due dates are available, use EDD;
+                    # if due date is unavailable, fallback deterministically to SPT, with anti-starvation aging promotion.
+                    if has_due:
+                        return (in_active_frontier, 0, float(j.due_date), -prio, -waiting_so_far, op.duration, est_start, j.job_id)
+                    elif waiting_so_far >= 60.0:
+                        # Prevent starvation of undated jobs after extended waiting
+                        eff_due = est_start + rem_work
+                        return (in_active_frontier, 0, eff_due, -prio, -waiting_so_far, op.duration, est_start, j.job_id)
+                    else:
+                        return (in_active_frontier, 1, op.duration, -prio, -waiting_so_far, j.arrival_time, est_start, j.job_id)
+                elif r_upper == "CR":
+                    if has_due:
+                        time_until_due = float(j.due_date) - est_start
+                        cr = (time_until_due / rem_work) if rem_work > 0 else 0.0
+                        return (in_active_frontier, 0, cr, -prio, -waiting_so_far, op.duration, est_start, j.job_id)
+                    else:
+                        return (in_active_frontier, 1, op.duration, -prio, -waiting_so_far, j.arrival_time, est_start, j.job_id)
+                elif r_upper == "AGING":
                     # Priority score: Higher waiting & tighter slack gets scheduled earlier (negated for ascending sort)
-                    slack = time_until_due - rem_work
-                    score = (1.5 * waiting_so_far) - (0.8 * slack) - (0.2 * op.duration)
-                    return (-score, est_start)
+                    # Priority acts as a tie-breaker / bonus without drowning out earlier arrivals
+                    if has_due:
+                        time_until_due = float(j.due_date) - est_start
+                        slack = time_until_due - rem_work
+                        score = (1.5 * waiting_so_far) - (0.8 * slack) - (0.2 * op.duration) + (0.01 * prio)
+                    else:
+                        score = (1.5 * waiting_so_far) - (0.5 * op.duration) + (0.01 * prio)
+                    return (in_active_frontier, -score, -prio, est_start, j.job_id)
                 else:
-                    return (est_start, j.arrival_time)
+                    return (in_active_frontier, est_start, -prio, j.arrival_time, j.job_id)
 
             candidate_ops.sort(key=get_sort_key)
             
-            # Dispatch top candidate
-            chosen_job, chosen_idx, _, m_id = candidate_ops[0]
+            # Dispatch top candidate using gap-inserted start time
+            chosen_job, chosen_idx, est_start, m_id = candidate_ops[0]
             chosen_op = chosen_job.operations[chosen_idx]
             
-            actual_start = max(job_ready_time[chosen_job.job_id], machine_free_time[m_id])
+            actual_start = _earliest_feasible_start(m_id, job_ready_time[chosen_job.job_id], chosen_op.duration)
             actual_end = actual_start + chosen_op.duration
             
             scheduled_tasks.append(
@@ -164,7 +216,8 @@ class DispatchHeuristicScheduler:
             )
             
             # Update states
-            machine_free_time[m_id] = actual_end
+            machine_intervals.setdefault(m_id, []).append((actual_start, actual_end))
+            machine_free_time[m_id] = max(machine_free_time.get(m_id, current_time), actual_end)
             job_ready_time[chosen_job.job_id] = actual_end
             job_next_op_idx[chosen_job.job_id] += 1
 

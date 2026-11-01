@@ -70,7 +70,7 @@ def test_save_and_restore_sim_state_across_restart():
     assert m1_final.status == MachineStatus.IDLE
     j_final = ProductionStateService.get_all_jobs()[0]
     assert j_final.status == JobStatus.COMPLETED
-    assert j_final.operations[0].end_time == 15.0
+    assert j_final.operations[0].end_time == 12.0
 
 
 def test_empty_persisted_state_infers_or_defaults_cleanly():

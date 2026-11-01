@@ -1,3 +1,12 @@
+import os
+import tempfile
+from pathlib import Path
+
+os.environ.setdefault(
+    "SQLITE_DB_PATH",
+    str(Path(tempfile.gettempdir()) / "pytest_isolated_production_scheduler.db")
+)
+
 import pytest
 from app.database.db import engine, Base
 

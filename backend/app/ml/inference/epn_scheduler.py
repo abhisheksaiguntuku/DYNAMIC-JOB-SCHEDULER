@@ -293,25 +293,41 @@ class EPNJobShopScheduler:
                 return cand
 
             while job_pending_ops:
-                candidates = []
+                raw_candidates = []
                 for j_id, ops_list in job_pending_ops.items():
                     j_obj = job_map[j_id]
                     op = ops_list[0]
                     slot_val = job_pred_slots[j_id][0]
                     j_ready = job_ready_time[j_id]
-                    e_start = _earliest_active_start(op.machine_id, j_ready, op.duration)
+                    eligible_m = [op.machine_id] + [
+                        alt for alt in (op.alternative_machines or [])
+                        if alt in machine_intervals and alt != op.machine_id
+                    ]
+                    best_m = eligible_m[0]
+                    e_start = _earliest_active_start(best_m, j_ready, op.duration)
+                    for cand_m in eligible_m[1:]:
+                        c_start = _earliest_active_start(cand_m, j_ready, op.duration)
+                        if c_start < e_start - 1e-6:
+                            e_start = c_start
+                            best_m = cand_m
+                    raw_candidates.append((j_id, op, slot_val, j_ready, e_start, best_m))
+
+                min_comp = min(e_start + op.duration for _, op, _, _, e_start, _ in raw_candidates)
+                candidates = []
+                for j_id, op, slot_val, j_ready, e_start, best_m in raw_candidates:
+                    j_obj = job_map[j_id]
+                    in_active_frontier = 0 if e_start < min_comp - 1e-6 else 1
                     if is_hybrid_spt:
                         # Hybrid EPN + SPT active-schedule priority key
-                        sort_key = (e_start, op.duration + 0.25 * slot_val, -j_obj.priority, j_obj.arrival_time, j_id)
+                        sort_key = (in_active_frontier, e_start, op.duration + 0.25 * slot_val, -j_obj.priority, j_obj.arrival_time, j_id)
                     else:
                         # Pure EPN operation-ready decoding (no SPT duration rule)
-                        sort_key = (e_start, slot_val, -j_obj.priority, j_obj.arrival_time, j_id)
-                    candidates.append((sort_key, j_id, op, slot_val, j_ready, e_start))
+                        sort_key = (in_active_frontier, e_start, slot_val, -j_obj.priority, j_obj.arrival_time, j_id)
+                    candidates.append((sort_key, j_id, op, slot_val, j_ready, e_start, best_m))
 
                 candidates.sort(key=lambda x: x[0])
-                _, chosen_jid, chosen_op, chosen_slot, chosen_j_ready, est_start = candidates[0]
+                _, chosen_jid, chosen_op, chosen_slot, chosen_j_ready, est_start, m_id = candidates[0]
                 j_obj = job_map[chosen_jid]
-                m_id = chosen_op.machine_id
                 m_free_before = machine_free_time[m_id]
                 est_end = est_start + chosen_op.duration
 

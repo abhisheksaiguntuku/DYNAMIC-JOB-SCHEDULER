@@ -96,9 +96,11 @@ class CPSATSchedulingOptimizer:
                     continue
                     
                 if op.status == OperationStatus.RUNNING:
-                    s_int = int(round((op.start_time or current_time) * SCALE))
+                    start_op_t = op.start_time if op.start_time is not None else current_time
+                    s_int = int(round(start_op_t * SCALE))
                     # Machine is locked for remaining duration
-                    m_running = all_machines.get(op.machine_id)
+                    run_m_id = op.assigned_machine_id or op.machine_id
+                    m_running = all_machines.get(run_m_id)
                     rem = m_running.remaining_processing_time if (m_running and m_running.remaining_processing_time > 1e-4) else op.duration
                     e_int = cur_t_int + int(round(rem * SCALE))
                     prev_end_var = e_int
@@ -106,16 +108,16 @@ class CPSATSchedulingOptimizer:
                     if not (m_running and m_running.status == MachineStatus.BUSY and m_running.remaining_processing_time > 1e-4):
                         run_dur_int = max(1, e_int - cur_t_int)
                         run_interval = model.NewIntervalVar(cur_t_int, run_dur_int, e_int, f"run_{j.job_id}_{op.sequence}")
-                        if op.machine_id in machine_intervals:
-                            machine_intervals[op.machine_id].append(run_interval)
+                        if run_m_id in machine_intervals:
+                            machine_intervals[run_m_id].append(run_interval)
                     scheduled_tasks.append(
                         ScheduledTask(
                             job_id=j.job_id,
                             job_name=j.name,
                             operation_sequence=op.sequence,
                             operation_name=op.name,
-                            machine_id=op.machine_id,
-                            start_time=op.start_time or current_time,
+                            machine_id=run_m_id,
+                            start_time=round(start_op_t, 2),
                             end_time=round(e_int / SCALE, 2),
                             duration=op.duration,
                             is_running=True
@@ -181,18 +183,15 @@ class CPSATSchedulingOptimizer:
         tardiness_terms = []
         completion_terms = []
         for j in jobs:
-            due_int = int(round(j.due_date * SCALE))
             j_end = job_end_vars.get(j.job_id)
             if j_end is not None:
-                tard_var = model.NewIntVar(0, horizon, f"tardiness_{j.job_id}")
-                if isinstance(j_end, int):
-                    model.Add(tard_var >= j_end - due_int)
-                else:
-                    model.Add(tard_var >= j_end - due_int)
-                
                 # Weight by user priority (1 to 5)
-                p_factor = getattr(j, 'priority', 3)
-                tardiness_terms.append(p_factor * tard_var)
+                p_factor = getattr(j, 'priority', 3) or 3
+                if j.due_date is not None and j.due_date > 0:
+                    due_int = int(round(j.due_date * SCALE))
+                    tard_var = model.NewIntVar(0, horizon, f"tardiness_{j.job_id}")
+                    model.Add(tard_var >= j_end - due_int)
+                    tardiness_terms.append(p_factor * tard_var)
                 completion_terms.append(p_factor * j_end)
                 
         # Objective: minimize (w_mk * makespan + w_tard * sum(weighted_tardiness) + sum(priority * completion))
@@ -255,11 +254,20 @@ class CPSATSchedulingOptimizer:
             fallback_res = DispatchHeuristicScheduler.schedule(jobs, machines, current_time, rule="SPT")
             
             # Independently validate the fallback schedule before returning
-            is_valid, validation_errors = ScheduleValidator.validate(
-                tasks=fallback_res.tasks,
-                machines=machines,
-                current_time=current_time
-            )
+            try:
+                is_valid, validation_errors = ScheduleValidator.validate(
+                    tasks=fallback_res.tasks,
+                    machines=machines,
+                    current_time=current_time,
+                    jobs=jobs
+                )
+            except TypeError:
+                # Backward-compatibility for monkeypatched validate signatures without jobs/kwargs
+                is_valid, validation_errors = ScheduleValidator.validate(
+                    fallback_res.tasks,
+                    machines,
+                    current_time
+                )
             if not is_valid:
                 err_msg = "; ".join(validation_errors)
                 raise ValueError(

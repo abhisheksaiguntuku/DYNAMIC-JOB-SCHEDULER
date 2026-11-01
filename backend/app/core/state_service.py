@@ -13,6 +13,22 @@ class StaleScheduleError(ValueError):
     pass
 
 
+class DemoResetResult(int):
+    """Integer subclass for backward compatibility with tests expecting integer count."""
+    def __new__(cls, count: int, schedule: Any = None):
+        obj = super().__new__(cls, count)
+        obj.jobs_count = count
+        obj.schedule = schedule
+        return obj
+
+    def __getitem__(self, item):
+        if item == "jobs_count":
+            return self.jobs_count
+        elif item == "schedule":
+            return self.schedule
+        raise KeyError(item)
+
+
 class ProductionStateService:
     _lock = threading.RLock()
 
@@ -82,6 +98,12 @@ class ProductionStateService:
                 with open(initial_jobs_path, "r") as f:
                     jobs_data = json.load(f)
                 for j in jobs_data:
+                    sanitized_ops = []
+                    for op in j["operations"]:
+                        op_copy = dict(op)
+                        if "status" not in op_copy:
+                            op_copy["status"] = OperationStatus.PENDING.value
+                        sanitized_ops.append(op_copy)
                     db.add(JobModel(
                         job_id=j["job_id"],
                         name=j["name"],
@@ -91,72 +113,104 @@ class ProductionStateService:
                         due_date=j["due_date"],
                         priority=j.get("priority", 3),
                         status="PENDING",
-                        operations_json=[op for op in j["operations"]]
+                        operations_json=sanitized_ops
                     ))
                 db.commit()
+
+            # Ensure an initial schedule exists if there are jobs and machines
+            has_jobs = db.query(JobModel).count() > 0
+            has_machines = db.query(MachineModel).count() > 0
+            has_schedule = db.query(ScheduleRecordModel).count() > 0
+            if has_jobs and has_machines and not has_schedule:
+                try:
+                    ProductionStateService.recalculate_schedule(sim_time=0.0, algorithm="CPSAT")
+                except Exception:
+                    pass
         finally:
             db.close()
 
     @staticmethod
-    def reset_to_demo_workload(initial_jobs_path: str, initial_machines_path: str) -> int:
+    def reset_to_demo_workload(initial_jobs_path: str, initial_machines_path: str) -> Dict[str, Any]:
         """
-        Resets jobs and machines to the baseline demo dataset.
+        Atomically resets jobs, machines, simulation clock, and schedule records back to baseline demo.
+        Generates and persists a fresh initial schedule.
         Faculty benchmarks and EPN checkpoints remain completely untouched.
         """
         init_db()
-        db = SessionLocal()
-        try:
-            # Clear all current jobs and reset machines to baseline demo machines
-            db.query(JobModel).delete()
-            if initial_machines_path:
-                db.query(MachineModel).delete()
-                with open(initial_machines_path, "r") as f:
-                    machines_data = json.load(f)
-                for m in machines_data:
-                    db.add(MachineModel(
-                        machine_id=m["machine_id"],
-                        name=m["name"],
-                        capability=m["capability"],
-                        status=MachineStatus.IDLE.value,
-                        remaining_processing_time=0.0,
-                        total_busy_time=0.0
+        with ProductionStateService._lock:
+            db = SessionLocal()
+            try:
+                # 1. Clear all schedule records
+                db.query(ScheduleRecordModel).delete()
+
+                # 2. Clear all jobs
+                db.query(JobModel).delete()
+
+                # 3. Reset machines
+                if initial_machines_path:
+                    db.query(MachineModel).delete()
+                    with open(initial_machines_path, "r") as f:
+                        machines_data = json.load(f)
+                    for m in machines_data:
+                        db.add(MachineModel(
+                            machine_id=m["machine_id"],
+                            name=m["name"],
+                            capability=m["capability"],
+                            status=MachineStatus.IDLE.value,
+                            remaining_processing_time=0.0,
+                            total_busy_time=0.0
+                        ))
+                else:
+                    machines = db.query(MachineModel).all()
+                    for m in machines:
+                        m.status = MachineStatus.IDLE.value
+                        m.current_job_id = None
+                        m.current_operation_seq = None
+                        m.remaining_processing_time = 0.0
+                        m.total_busy_time = 0.0
+
+                # 4. Reset simulation state
+                sim_state = db.query(SimulationStateModel).filter(SimulationStateModel.id == 1).first()
+                if sim_state:
+                    sim_state.sim_time = 0.0
+                    sim_state.is_running = False
+                    sim_state.state_version = (sim_state.state_version or 1) + 1
+                    sim_state.updated_at = datetime.utcnow()
+                else:
+                    db.add(SimulationStateModel(id=1, sim_time=0.0, is_running=False, speed_multiplier=1.0, state_version=1))
+
+                # 5. Re-seed exactly 10 baseline demo jobs
+                with open(initial_jobs_path, "r") as f:
+                    jobs_data = json.load(f)
+                for j in jobs_data:
+                    sanitized_ops = []
+                    for op in j["operations"]:
+                        op_copy = dict(op)
+                        if "status" not in op_copy:
+                            op_copy["status"] = OperationStatus.PENDING.value
+                        sanitized_ops.append(op_copy)
+                    db.add(JobModel(
+                        job_id=j["job_id"],
+                        name=j["name"],
+                        product_type=j["product_type"],
+                        quantity=j.get("quantity", 1),
+                        arrival_time=j.get("arrival_time", 0.0),
+                        due_date=j["due_date"],
+                        priority=j.get("priority", 3),
+                        status="PENDING",
+                        operations_json=sanitized_ops
                     ))
-            else:
-                machines = db.query(MachineModel).all()
-                for m in machines:
-                    m.status = MachineStatus.IDLE.value
-                    m.current_job_id = None
-                    m.current_operation_seq = None
-                    m.remaining_processing_time = 0.0
-                    m.total_busy_time = 0.0
+                db.commit()
 
-            sim_state = db.query(SimulationStateModel).filter(SimulationStateModel.id == 1).first()
-            if sim_state:
-                sim_state.sim_time = 0.0
-                sim_state.is_running = False
-                sim_state.state_version = (sim_state.state_version or 1) + 1
-            else:
-                db.add(SimulationStateModel(id=1, sim_time=0.0, is_running=False, speed_multiplier=1.0, state_version=1))
+                # 6. Generate fresh initial schedule
+                fresh_schedule = ProductionStateService.recalculate_schedule(sim_time=0.0, algorithm="CPSAT")
 
-            # Re-seed baseline demo jobs
-            with open(initial_jobs_path, "r") as f:
-                jobs_data = json.load(f)
-            for j in jobs_data:
-                db.add(JobModel(
-                    job_id=j["job_id"],
-                    name=j["name"],
-                    product_type=j["product_type"],
-                    quantity=j.get("quantity", 1),
-                    arrival_time=j.get("arrival_time", 0.0),
-                    due_date=j["due_date"],
-                    priority=j.get("priority", 3),
-                    status="PENDING",
-                    operations_json=[op for op in j["operations"]]
-                ))
-            db.commit()
-            return len(jobs_data)
-        finally:
-            db.close()
+                return DemoResetResult(len(jobs_data), fresh_schedule)
+            except Exception as e:
+                db.rollback()
+                raise RuntimeError(f"Atomic demo reset failed: {str(e)}")
+            finally:
+                db.close()
 
     @staticmethod
     def get_all_jobs() -> List[Job]:
@@ -172,7 +226,7 @@ class ProductionStateService:
                     product_type=r.product_type,
                     quantity=r.quantity,
                     arrival_time=r.arrival_time,
-                    due_date=r.due_date,
+                    due_date=r.due_date if (r.due_date is not None and r.due_date > 0) else None,
                     priority=r.priority,
                     status=JobStatus(r.status),
                     operations=ops
@@ -206,19 +260,41 @@ class ProductionStateService:
         with ProductionStateService._lock:
             db = SessionLocal()
             try:
+                if not job.job_id or not job.job_id.strip():
+                    raise ValueError("Job ID cannot be empty.")
                 existing = db.query(JobModel).filter(JobModel.job_id == job.job_id).first()
                 if existing:
                     raise ValueError(f"Job with ID '{job.job_id}' already exists.")
                 if not job.operations or len(job.operations) == 0:
                     raise ValueError("Job must contain at least one operation.")
+                if job.arrival_time < 0:
+                    raise ValueError("Job arrival_time must be non-negative.")
+                if job.due_date is not None and job.due_date <= 0:
+                    raise ValueError("Job due_date must be greater than zero when provided.")
 
-                # Validate all operations: duration > 0 and machine exists
+                # Validate all operations: duration > 0, strictly increasing acyclic sequence, and eligible machines exist
                 known_machines = {m.machine_id for m in db.query(MachineModel).all()}
+                seen_sequences = set()
+                prev_seq = 0
                 for op in job.operations:
+                    if op.sequence <= 0 or op.sequence in seen_sequences or op.sequence <= prev_seq:
+                        raise ValueError(
+                            f"Invalid or cyclic operation sequence '{op.sequence}' in job '{job.job_id}'. "
+                            f"Operation sequences must be strictly increasing positive integers."
+                        )
+                    seen_sequences.add(op.sequence)
+                    prev_seq = op.sequence
+
                     if op.duration <= 0:
                         raise ValueError(f"Operation {op.sequence} ({op.name}) duration must be greater than zero. Received: {op.duration}")
                     if known_machines and op.machine_id not in known_machines:
                         raise ValueError(f"Operation {op.sequence} assigned to invalid or non-existent machine '{op.machine_id}'. Valid machines: {sorted(known_machines)}")
+                    for alt_m in (op.alternative_machines or []):
+                        if known_machines and alt_m not in known_machines:
+                            raise ValueError(
+                                f"Operation {op.sequence} alternative machine '{alt_m}' is invalid or non-existent. "
+                                f"Valid machines: {sorted(known_machines)}"
+                            )
 
                 job_rec = JobModel(
                     job_id=job.job_id,
@@ -226,7 +302,7 @@ class ProductionStateService:
                     product_type=job.product_type,
                     quantity=job.quantity,
                     arrival_time=job.arrival_time,
-                    due_date=job.due_date,
+                    due_date=float(job.due_date) if (job.due_date is not None and job.due_date > 0) else -1.0,
                     priority=job.priority,
                     status=job.status.value,
                     operations_json=[op.dict() for op in job.operations]
@@ -234,6 +310,20 @@ class ProductionStateService:
                 db.add(job_rec)
                 ProductionStateService.increment_state_version(db)
                 db.commit()
+
+                # Automatically recalculate future schedule on new dynamic job arrival
+                # while preserving already running operations and commitments
+                try:
+                    sim_state = db.query(SimulationStateModel).filter(SimulationStateModel.id == 1).first()
+                    curr_sim_time = float(sim_state.sim_time) if sim_state and sim_state.sim_time is not None else 0.0
+                    ProductionStateService.recalculate_schedule(sim_time=curr_sim_time, algorithm="CPSAT")
+                except Exception:
+                    # Fallback to SPT heuristic recalculation if CP-SAT cannot be run immediately
+                    try:
+                        ProductionStateService.recalculate_schedule(sim_time=curr_sim_time, algorithm="SPT")
+                    except Exception:
+                        pass
+
                 return job
             finally:
                 db.close()
@@ -371,7 +461,12 @@ class ProductionStateService:
             elif algo == "EPN":
                 from app.ml.inference.epn_scheduler import EPNJobShopScheduler
                 epn_scheduler = EPNJobShopScheduler()
-                result = epn_scheduler.schedule(jobs_to_schedule, machines, current_time=sim_time)
+                result = epn_scheduler.schedule(
+                    jobs_to_schedule,
+                    machines,
+                    current_time=sim_time,
+                    ablation_mode="ABLATION_C_HYBRID_SPT"
+                )
             else:
                 result = DispatchHeuristicScheduler.schedule(jobs_to_schedule, machines, current_time=sim_time, rule=algo)
 
@@ -399,3 +494,24 @@ class ProductionStateService:
                 db.close()
                 
             return result
+
+    @staticmethod
+    def get_latest_schedule() -> Optional[ScheduleResult]:
+        db = SessionLocal()
+        try:
+            record = db.query(ScheduleRecordModel).order_by(ScheduleRecordModel.created_at.desc()).first()
+            if not record:
+                return None
+            from app.schemas.models import ScheduledTask, ScheduleMetrics
+            tasks = [ScheduledTask(**t) for t in (record.tasks_json or [])]
+            metrics = ScheduleMetrics(**(record.metrics_json or {}))
+            return ScheduleResult(
+                schedule_id=record.schedule_id,
+                algorithm=record.algorithm,
+                created_at_sim_time=record.created_at_sim_time,
+                tasks=tasks,
+                metrics=metrics,
+                explanation=record.explanation_json or {}
+            )
+        finally:
+            db.close()
