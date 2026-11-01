@@ -28,6 +28,7 @@ interface Operation {
   start_time?: number | null;
   end_time?: number | null;
   setup_time?: number;
+  alternative_machines?: string[];
 }
 
 interface Job {
@@ -106,6 +107,20 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [showAddJob, setShowAddJob] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // Demo token kept strictly in React component memory (cleared on page refresh)
+  const [demoToken, setDemoToken] = useState<string>('');
+
+  const getWriteConfig = () => {
+    const trimmed = demoToken.trim();
+    return trimmed ? { headers: { 'X-Demo-Token': trimmed } } : {};
+  };
+
+  const formatApiError = (e: any, fallback: string): string => {
+    if (e?.response?.status === 401) {
+      return 'Unauthorized (HTTP 401): Enter a valid Demo Access Token in the top header before running state-changing actions.';
+    }
+    return e?.response?.data?.detail || fallback;
+  };
 
   // Lifecycle Filters & Search
   const [searchQuery, setSearchQuery] = useState('');
@@ -125,11 +140,11 @@ export default function App() {
     due_date: 250,
     priority: 3,
     operations: [
-      { sequence: 1, name: 'Pattern Making', machine_id: 'M1', duration: 0, status: 'PENDING' }
+      { sequence: 1, name: 'Pattern Making', machine_id: 'M1', duration: 0, status: 'PENDING', alternative_machines: [] as string[] }
     ]
   });
 
-  const fetchData = async () => {
+  const fetchData = async (includeInitialSchedule = false) => {
     try {
       const [mRes, jRes, simRes, recRes] = await Promise.all([
         axios.get(`${API_BASE}/machines`),
@@ -141,8 +156,16 @@ export default function App() {
       setJobs(jRes.data);
       setSimStatus(simRes.data);
       setRecommendation(recRes.data);
+      if (includeInitialSchedule) {
+        const [schedRes, compRes] = await Promise.all([
+          axios.get(`${API_BASE}/schedules/latest`),
+          axios.get(`${API_BASE}/schedules/compare`)
+        ]);
+        setSchedule(schedRes.data);
+        setComparison(compRes.data);
+      }
     } catch (e: any) {
-      console.error("Error fetching data", e);
+      setErrorMessage(e?.response?.data?.detail || "Unable to load initial shop floor state.");
     }
   };
 
@@ -150,25 +173,25 @@ export default function App() {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const res = await axios.post(`${API_BASE}/schedules/recalculate?algorithm=${algo}`);
+      const res = await axios.post(`${API_BASE}/schedules/recalculate?algorithm=${algo}`, null, getWriteConfig());
       setSchedule(res.data);
       const compRes = await axios.get(`${API_BASE}/schedules/compare`);
       setComparison(compRes.data);
       await fetchData();
     } catch (e: any) {
-      console.error(e);
-      setErrorMessage(e.response?.data?.detail || "Recalculation failed.");
+      setErrorMessage(formatApiError(e, "Recalculation failed."));
     } finally {
       setLoading(false);
     }
   };
 
   const advanceSim = async (mins: number) => {
+    setErrorMessage(null);
     try {
-      await axios.post(`${API_BASE}/simulation/advance?step_minutes=${mins}`);
+      await axios.post(`${API_BASE}/simulation/advance?step_minutes=${mins}`, null, getWriteConfig());
       await runRecalculation();
     } catch (e: any) {
-      console.error(e);
+      setErrorMessage(formatApiError(e, "Failed to advance simulation clock."));
     }
   };
 
@@ -176,13 +199,13 @@ export default function App() {
     setErrorMessage(null);
     try {
       if (m.status === 'DOWN' || m.status === 'MAINTENANCE') {
-        await axios.post(`${API_BASE}/machines/${m.machine_id}/recover`);
+        await axios.post(`${API_BASE}/machines/${m.machine_id}/recover`, null, getWriteConfig());
       } else {
-        await axios.post(`${API_BASE}/machines/${m.machine_id}/downtime?duration=20`);
+        await axios.post(`${API_BASE}/machines/${m.machine_id}/downtime?duration=20`, null, getWriteConfig());
       }
       await runRecalculation();
     } catch (e: any) {
-      setErrorMessage(e.response?.data?.detail || "Machine state update failed.");
+      setErrorMessage(formatApiError(e, "Machine state update failed."));
     }
   };
 
@@ -192,10 +215,12 @@ export default function App() {
     }
     try {
       setLoading(true);
-      await axios.post(`${API_BASE}/data/reset-demo`);
+      setErrorMessage(null);
+      await axios.post(`${API_BASE}/data/reset-demo`, null, getWriteConfig());
       await runRecalculation();
     } catch (e: any) {
-      alert("Failed to reset demo: " + (e.response?.data?.detail || e.message));
+      const msg = formatApiError(e, e.message || "Failed to reset demo.");
+      setErrorMessage(msg);
     } finally {
       setLoading(false);
     }
@@ -220,7 +245,8 @@ export default function App() {
             name: opName,
             machine_id: defaultMachine,
             duration: 0, // Explicitly 0 placeholder, user must enter > 0
-            status: 'PENDING'
+            status: 'PENDING',
+            alternative_machines: []
           }
         ]
       };
@@ -283,7 +309,7 @@ export default function App() {
     }
 
     try {
-      await axios.post(`${API_BASE}/jobs`, newJob);
+      await axios.post(`${API_BASE}/jobs`, newJob, getWriteConfig());
       setShowAddJob(false);
       await runRecalculation();
       // Generate next random ID and reset form with empty positive fields
@@ -296,17 +322,18 @@ export default function App() {
         due_date: simStatus.sim_time + 200,
         priority: 3,
         operations: [
-          { sequence: 1, name: 'Pattern Making', machine_id: 'M1', duration: 0, status: 'PENDING' }
+          { sequence: 1, name: 'Pattern Making', machine_id: 'M1', duration: 0, status: 'PENDING', alternative_machines: [] }
         ]
       });
     } catch (e: any) {
-      alert(e.response?.data?.detail || "Failed to add job.");
+      const msg = formatApiError(e, "Failed to add job.");
+      setErrorMessage(msg);
+      alert(msg);
     }
   };
 
   useEffect(() => {
-    fetchData();
-    runRecalculation('CPSAT');
+    fetchData(true);
   }, []);
 
   // Compute Job Lifecycle States
@@ -473,7 +500,7 @@ export default function App() {
     <div style={{ minHeight: '100vh', backgroundColor: '#0b1120', color: '#f8fafc', fontFamily: 'system-ui, -apple-system, sans-serif', padding: '20px 24px' }}>
       
       {/* Top Header */}
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #1e293b', paddingBottom: '16px' }}>
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '8px' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <Cpu style={{ color: '#38bdf8', width: 34, height: 34 }} />
@@ -481,21 +508,26 @@ export default function App() {
               <h1 style={{ fontSize: '22px', fontWeight: 800, margin: 0, letterSpacing: '-0.5px' }}>
                 AI Dynamic Job-Shop Scheduling System
               </h1>
-              <span style={{ fontSize: '12px', color: '#64748b' }}>
-                Stage 6: Industrial Production Lifecycle, Flexible Multi-Machine Routing &amp; 10-Machine Telemetry
-              </span>
             </div>
           </div>
         </div>
 
         {/* Action Controls & Clock */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {/* Workload separation banner */}
+          {/* Demo Access Token Input (in-memory only, for protected write operations) */}
           <div style={{ backgroundColor: '#1e293b', padding: '6px 12px', borderRadius: '6px', border: '1px solid #334155', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Info size={14} color="#38bdf8" />
             <span style={{ fontSize: '11px', color: '#94a3b8' }}>
               Workload: <strong style={{ color: '#cbd5e1' }}>Demo Workload + Dynamic User Jobs</strong>
             </span>
+            <input
+              type="password"
+              placeholder="Demo Token (for edits)"
+              value={demoToken}
+              onChange={e => setDemoToken(e.target.value)}
+              title="In-memory token sent via X-Demo-Token header for state-modifying actions (cleared on refresh)"
+              style={{ marginLeft: '6px', width: '135px', padding: '4px 8px', backgroundColor: '#0f172a', border: '1px solid #475569', color: '#f8fafc', borderRadius: '4px', fontSize: '11px' }}
+            />
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#1e293b', padding: '6px 14px', borderRadius: '8px', border: '1px solid #334155' }}>
@@ -532,6 +564,59 @@ export default function App() {
         </div>
       </header>
 
+      {/* Simulation Engine Status Banner */}
+      {(() => {
+        const busyMachinesCount = machines.filter(m => m.status === 'BUSY').length;
+        const runningJobsCount = summaryCounts.IN_PROGRESS;
+        const isRunning = Boolean(simStatus?.is_running);
+        const simTime = Number(simStatus?.sim_time ?? currentSim ?? 0);
+
+        // Derive guidance message strictly based on actual backend state
+        let bannerMessage = '';
+        let bannerColor = '#fbbf24'; // amber default
+        if (isRunning) {
+          bannerMessage = 'Simulation actively advancing.';
+          bannerColor = '#34d399'; // emerald
+        } else if (simTime <= 0.001 && busyMachinesCount === 0) {
+          bannerMessage = 'Simulation not started. Advance simulation time to begin physical machine dispatch.';
+          bannerColor = '#38bdf8'; // sky blue
+        } else {
+          bannerMessage = 'Simulation paused. Resume or advance simulation to continue production.';
+          bannerColor = '#fbbf24'; // amber
+        }
+
+        return (
+          <div style={{ backgroundColor: '#1e293b', padding: '10px 16px', borderRadius: '8px', border: '1px solid #334155', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <div style={{ 
+                width: '10px', 
+                height: '10px', 
+                borderRadius: '50%', 
+                backgroundColor: isRunning ? '#10b981' : '#f59e0b',
+                boxShadow: isRunning ? '0 0 8px #10b981' : '0 0 8px #f59e0b'
+              }} />
+              <span style={{ fontSize: '12px', color: '#cbd5e1' }}>
+                <strong>Engine State:</strong> {isRunning ? 'Active Simulation' : 'Simulation Paused'} (Clock: {simTime} min, Version: v{simStatus?.state_version ?? 1})
+              </span>
+              <span style={{ 
+                fontSize: '11px', 
+                padding: '2px 8px', 
+                borderRadius: '4px', 
+                backgroundColor: busyMachinesCount > 0 ? 'rgba(234, 179, 8, 0.2)' : 'rgba(100, 116, 139, 0.2)',
+                color: busyMachinesCount > 0 ? '#fde047' : '#94a3b8',
+                fontWeight: 600
+              }}>
+                Shop Floor Execution: {busyMachinesCount} Machine{busyMachinesCount !== 1 ? 's' : ''} Busy | {runningJobsCount} Job{runningJobsCount !== 1 ? 's' : ''} Running
+              </span>
+            </div>
+            <div style={{ fontSize: '12px', color: bannerColor, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Info size={14} color={bannerColor} />
+              <span>{bannerMessage}</span>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Error alert banner */}
       {errorMessage && (
         <div style={{ backgroundColor: '#451a03', border: '1px solid #b45309', color: '#fed7aa', padding: '10px 14px', borderRadius: '6px', marginBottom: '16px', fontSize: '13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -560,7 +645,7 @@ export default function App() {
             <div style={{ fontSize: '20px', fontWeight: 'bold', marginTop: '2px' }}>{schedule.metrics.avg_waiting_time} min</div>
           </div>
           <div style={{ backgroundColor: '#1e293b', padding: '14px', borderRadius: '8px', borderLeft: '4px solid #8b5cf6' }}>
-            <span style={{ fontSize: '11px', color: '#94a3b8' }}>Machine Utilization</span>
+            <span style={{ fontSize: '11px', color: '#94a3b8' }}>Planned Schedule Utilization</span>
             <div style={{ fontSize: '20px', fontWeight: 'bold', marginTop: '2px' }}>{schedule.metrics.avg_utilization}%</div>
             <span style={{ fontSize: '10px', color: '#64748b' }}>denom: Makespan ({schedule.metrics.makespan}m)</span>
           </div>
@@ -586,12 +671,12 @@ export default function App() {
           </div>
 
           {/* Lifecycle Summary Badges */}
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
             <span style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '6px', backgroundColor: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', fontWeight: 600 }}>
-              Queued: {summaryCounts.QUEUED}
+              Queued (Waiting Dispatch): {summaryCounts.QUEUED}
             </span>
             <span style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '6px', backgroundColor: 'rgba(234, 179, 8, 0.15)', color: '#facc15', fontWeight: 600 }}>
-              In Progress: {summaryCounts.IN_PROGRESS}
+              Running / In Progress: {summaryCounts.IN_PROGRESS}
             </span>
             <span style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '6px', backgroundColor: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', fontWeight: 600 }}>
               Near Completion: {summaryCounts.NEAR_COMPLETION}
@@ -805,8 +890,9 @@ export default function App() {
                     Cap: {m.capability}
                   </div>
                   {/* Utilization denominator explanation */}
-                  <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>
-                    Util: <strong style={{ color: utilVal > 0 ? '#38bdf8' : '#64748b' }}>{utilVal}%</strong>
+                  <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>Planned Util:</span>
+                    <strong style={{ color: utilVal > 0 ? '#38bdf8' : '#64748b' }}>{utilVal}%</strong>
                   </div>
                   {m.status === 'BUSY' && (
                     <div style={{ marginTop: '6px', fontSize: '10px', color: '#f59e0b', backgroundColor: '#451a03', padding: '3px', borderRadius: '3px' }}>
@@ -1228,86 +1314,127 @@ export default function App() {
                 </div>
 
                 {newJob.operations.map((op, idx) => (
-                  <div key={idx} style={{ display: 'grid', gridTemplateColumns: '28px 1fr 1.6fr 90px 32px', gap: '8px', alignItems: 'center', marginBottom: '8px', backgroundColor: '#1e293b', padding: '8px', borderRadius: '6px' }}>
-                    {/* Seq */}
-                    <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#38bdf8', textAlign: 'center' }}>
-                      #{op.sequence}
-                    </span>
+                  <div key={idx} style={{ marginBottom: '10px', backgroundColor: '#1e293b', padding: '10px', borderRadius: '6px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 1.6fr 90px 32px', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
+                      {/* Seq */}
+                      <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#38bdf8', textAlign: 'center' }}>
+                        #{op.sequence}
+                      </span>
 
-                    {/* Op Name */}
-                    <input 
-                      type="text"
-                      placeholder="Operation name"
-                      value={op.name}
-                      onChange={e => {
-                        const updated = [...newJob.operations];
-                        updated[idx].name = e.target.value;
-                        setNewJob({...newJob, operations: updated});
-                      }}
-                      style={{ padding: '6px', backgroundColor: '#0f172a', border: '1px solid #334155', color: '#fff', borderRadius: '4px', fontSize: '11px' }}
-                      required
-                    />
-
-                    {/* Machine Selector from Backend M1–M10 */}
-                    <select 
-                      value={op.machine_id}
-                      onChange={e => {
-                        const chosenMid = e.target.value;
-                        const mObj = machines.find(m => m.machine_id === chosenMid);
-                        const updated = [...newJob.operations];
-                        updated[idx].machine_id = chosenMid;
-                        if (mObj && (!updated[idx].name || updated[idx].name.startsWith('Stage') || updated[idx].name.includes('Making') || updated[idx].name.includes('Casting'))) {
-                          updated[idx].name = mObj.capability;
-                        }
-                        setNewJob({...newJob, operations: updated});
-                      }}
-                      style={{ padding: '6px', backgroundColor: '#0f172a', border: '1px solid #334155', color: '#cbd5e1', borderRadius: '4px', fontSize: '11px' }}
-                    >
-                      {machines.map(m => (
-                        <option key={m.machine_id} value={m.machine_id}>
-                          {m.machine_id} - {m.name} ({m.capability})
-                        </option>
-                      ))}
-                    </select>
-
-                    {/* Duration Input - initialized to 0, user must fill > 0 */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      {/* Op Name */}
                       <input 
-                        type="number"
-                        min="1"
-                        step="1"
-                        placeholder="dur > 0"
-                        value={op.duration === 0 ? '' : op.duration}
+                        type="text"
+                        placeholder="Operation name"
+                        value={op.name}
                         onChange={e => {
-                          const val = parseFloat(e.target.value);
                           const updated = [...newJob.operations];
-                          updated[idx].duration = isNaN(val) ? 0 : val;
+                          updated[idx].name = e.target.value;
                           setNewJob({...newJob, operations: updated});
                         }}
-                        style={{ 
-                          width: '56px', 
-                          padding: '6px 4px', 
-                          backgroundColor: '#0f172a', 
-                          border: op.duration <= 0 ? '1px solid #f43f5e' : '1px solid #334155', 
-                          color: '#fff', 
-                          borderRadius: '4px', 
-                          fontSize: '11px',
-                          textAlign: 'center'
-                        }}
+                        style={{ padding: '6px', backgroundColor: '#0f172a', border: '1px solid #334155', color: '#fff', borderRadius: '4px', fontSize: '11px' }}
                         required
                       />
-                      <span style={{ fontSize: '10px', color: '#64748b' }}>min</span>
+
+                      {/* Primary Machine Selector from Backend M1–M10 */}
+                      <select 
+                        value={op.machine_id}
+                        onChange={e => {
+                          const chosenMid = e.target.value;
+                          const mObj = machines.find(m => m.machine_id === chosenMid);
+                          const updated = [...newJob.operations];
+                          updated[idx].machine_id = chosenMid;
+                          // If current primary was in alternatives, remove it
+                          updated[idx].alternative_machines = (updated[idx].alternative_machines || []).filter(m => m !== chosenMid);
+                          if (mObj && (!updated[idx].name || updated[idx].name.startsWith('Stage') || updated[idx].name.includes('Making') || updated[idx].name.includes('Casting'))) {
+                            updated[idx].name = mObj.capability;
+                          }
+                          setNewJob({...newJob, operations: updated});
+                        }}
+                        style={{ padding: '6px', backgroundColor: '#0f172a', border: '1px solid #334155', color: '#cbd5e1', borderRadius: '4px', fontSize: '11px' }}
+                      >
+                        {machines.map(m => (
+                          <option key={m.machine_id} value={m.machine_id}>
+                            Primary: {m.machine_id} - {m.name} ({m.capability})
+                          </option>
+                        ))}
+                      </select>
+
+                      {/* Duration Input - initialized to 0, user must fill > 0 */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <input 
+                          type="number"
+                          min="1"
+                          step="1"
+                          placeholder="dur > 0"
+                          value={op.duration === 0 ? '' : op.duration}
+                          onChange={e => {
+                            const val = parseFloat(e.target.value);
+                            const updated = [...newJob.operations];
+                            updated[idx].duration = isNaN(val) ? 0 : val;
+                            setNewJob({...newJob, operations: updated});
+                          }}
+                          style={{ 
+                            width: '56px', 
+                            padding: '6px 4px', 
+                            backgroundColor: '#0f172a', 
+                            border: op.duration <= 0 ? '1px solid #f43f5e' : '1px solid #334155', 
+                            color: '#fff', 
+                            borderRadius: '4px', 
+                            fontSize: '11px',
+                            textAlign: 'center'
+                          }}
+                          required
+                        />
+                        <span style={{ fontSize: '10px', color: '#64748b' }}>min</span>
+                      </div>
+
+                      {/* Remove Op */}
+                      <button 
+                        type="button" 
+                        onClick={() => handleRemoveOperation(idx)}
+                        disabled={newJob.operations.length <= 1}
+                        style={{ background: 'none', border: 'none', color: newJob.operations.length <= 1 ? '#475569' : '#f43f5e', cursor: newJob.operations.length <= 1 ? 'not-allowed' : 'pointer', padding: '4px' }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
 
-                    {/* Remove Op */}
-                    <button 
-                      type="button" 
-                      onClick={() => handleRemoveOperation(idx)}
-                      disabled={newJob.operations.length <= 1}
-                      style={{ background: 'none', border: 'none', color: newJob.operations.length <= 1 ? '#475569' : '#f43f5e', cursor: newJob.operations.length <= 1 ? 'not-allowed' : 'pointer', padding: '4px' }}
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    {/* Alternative Machine Multi-Select Pills */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', paddingLeft: '36px', fontSize: '11px' }}>
+                      <span style={{ color: '#94a3b8', fontSize: '10px', fontWeight: 600 }}>Alternative Machines:</span>
+                      {machines.filter(m => m.machine_id !== op.machine_id).map(m => {
+                        const isSelected = (op.alternative_machines || []).includes(m.machine_id);
+                        return (
+                          <button
+                            key={m.machine_id}
+                            type="button"
+                            onClick={() => {
+                              const updated = [...newJob.operations];
+                              const currentAlts = updated[idx].alternative_machines || [];
+                              if (isSelected) {
+                                updated[idx].alternative_machines = currentAlts.filter(alt => alt !== m.machine_id);
+                              } else {
+                                updated[idx].alternative_machines = [...currentAlts, m.machine_id];
+                              }
+                              setNewJob({...newJob, operations: updated});
+                            }}
+                            title={`${m.name} (${m.capability})`}
+                            style={{
+                              padding: '2px 7px',
+                              borderRadius: '4px',
+                              border: isSelected ? '1px solid #38bdf8' : '1px solid #334155',
+                              backgroundColor: isSelected ? 'rgba(56, 189, 248, 0.2)' : '#0f172a',
+                              color: isSelected ? '#38bdf8' : '#64748b',
+                              fontSize: '10px',
+                              cursor: 'pointer',
+                              fontWeight: isSelected ? 700 : 400
+                            }}
+                          >
+                            {isSelected ? `✓ ${m.machine_id}` : `+ ${m.machine_id}`}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 ))}
               </div>
