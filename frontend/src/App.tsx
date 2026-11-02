@@ -114,7 +114,9 @@ export default function App() {
   const [simStatus, setSimStatus] = useState<any>({ sim_time: 0 });
   const [selectedAlgo, setSelectedAlgo] = useState('CPSAT');
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [showAddJob, setShowAddJob] = useState(false);
+  const [zoomHorizon, setZoomHorizon] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const getWriteConfig = () => {
@@ -177,6 +179,8 @@ export default function App() {
       }
     } catch (e: any) {
       setErrorMessage(e?.response?.data?.detail || "Unable to load initial shop floor state.");
+    } finally {
+      setInitialLoading(false);
     }
   };
 
@@ -586,7 +590,24 @@ export default function App() {
     return counts;
   }, [lifecycleData]);
 
-  const maxHorizon = schedule?.metrics.makespan ? Math.max(schedule.metrics.makespan, 200) : 250;
+  const priorityBadges = (p: number) => {
+    switch (p) {
+      case 5:
+        return { label: 'P5 Critical', color: '#f43f5e', bg: 'rgba(244, 63, 94, 0.2)' };
+      case 4:
+        return { label: 'P4 High', color: '#fb923c', bg: 'rgba(251, 146, 60, 0.2)' };
+      case 3:
+        return { label: 'P3 Normal', color: '#38bdf8', bg: 'rgba(56, 189, 248, 0.2)' };
+      case 2:
+        return { label: 'P2 Low', color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.2)' };
+      case 1:
+      default:
+        return { label: 'P1 Routine', color: '#64748b', bg: 'rgba(100, 116, 139, 0.2)' };
+    }
+  };
+
+  const naturalHorizon = schedule?.metrics.makespan ? Math.max(schedule.metrics.makespan, 200) : 250;
+  const maxHorizon = zoomHorizon || naturalHorizon;
 
   function round1(v: number) {
     return Math.round(v * 10) / 10;
@@ -749,6 +770,15 @@ export default function App() {
         </div>
       )}
 
+      {/* Initial Cold Start / Loading Banner */}
+      {initialLoading && (
+        <div style={{ backgroundColor: 'rgba(56, 189, 248, 0.12)', border: '1px solid #0284c7', color: '#bae6fd', padding: '12px 18px', borderRadius: '8px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px' }}>
+          <RefreshCw size={16} style={{ animation: 'spin 1s linear infinite' }} />
+          <span><strong>Connecting to Factory Production Engine:</strong> Initializing live database state and loading machine telemetry...</span>
+          <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
+        </div>
+      )}
+
       {/* Error alert banner */}
       {errorMessage && (
         <div style={{ backgroundColor: '#451a03', border: '1px solid #b45309', color: '#fed7aa', padding: '10px 14px', borderRadius: '6px', marginBottom: '16px', fontSize: '13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -901,7 +931,25 @@ export default function App() {
                     }}
                   >
                     <td style={{ padding: '9px 12px' }}>
-                      <div style={{ fontWeight: 700, color: '#f8fafc' }}>{item.job.job_id}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <div style={{ fontWeight: 700, color: '#f8fafc' }}>{item.job.job_id}</div>
+                        {(() => {
+                          const badge = priorityBadges(item.job.priority);
+                          return (
+                            <span style={{
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              padding: '1px 6px',
+                              borderRadius: '4px',
+                              color: badge.color,
+                              backgroundColor: badge.bg,
+                              border: `1px solid ${badge.color}40`
+                            }}>
+                              {badge.label}
+                            </span>
+                          );
+                        })()}
+                      </div>
                       <div style={{ fontSize: '11px', color: '#94a3b8' }}>{item.job.name} ({item.job.product_type})</div>
                     </td>
                     <td style={{ padding: '9px 12px' }}>
@@ -1096,8 +1144,30 @@ export default function App() {
                 <span style={{ fontSize: '11px', color: '#fef08a', fontWeight: 'bold' }}>ML RECOMMENDED STRATEGY:</span>
                 <span style={{ fontSize: '11px', color: '#a3e635' }}>Confidence: {(recommendation.confidence * 100).toFixed(0)}%</span>
               </div>
-              <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#fde047', marginTop: '3px' }}>
-                {recommendation.recommended_algorithm}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '3px' }}>
+                <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#fde047' }}>
+                  {recommendation.recommended_algorithm}
+                </div>
+                <button
+                  onClick={() => {
+                    const rec = recommendation.recommended_algorithm;
+                    setSelectedAlgo(rec);
+                    runRecalculation(rec);
+                  }}
+                  disabled={loading}
+                  style={{
+                    backgroundColor: '#eab308',
+                    color: '#0f172a',
+                    border: 'none',
+                    padding: '4px 10px',
+                    borderRadius: '5px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    cursor: loading ? 'wait' : 'pointer'
+                  }}
+                >
+                  ⚡ Apply Recommendation
+                </button>
               </div>
               <p style={{ fontSize: '11px', color: '#cbd5e1', margin: '4px 0 0 0' }}>
                 {recommendation.reason}
@@ -1145,23 +1215,53 @@ export default function App() {
             </span>
           </div>
 
-          {/* Gantt Legend */}
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', fontSize: '11px', color: '#94a3b8' }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ width: '10px', height: '10px', backgroundColor: '#10b981', borderRadius: '2px' }}></span> Completed
-            </span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ width: '10px', height: '10px', backgroundColor: '#eab308', borderRadius: '2px' }}></span> Running (Sim Lock)
-            </span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ width: '10px', height: '10px', backgroundColor: '#0284c7', borderRadius: '2px' }}></span> Planned / Planned Future
-            </span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ width: '10px', height: '10px', backgroundColor: '#f43f5e', borderRadius: '2px' }}></span> Late / Slack Deficit
-            </span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ width: '2px', height: '14px', backgroundColor: '#f43f5e', display: 'inline-block' }}></span> Clock Marker
-            </span>
+          {/* Gantt Zoom & Legend */}
+          <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: '#0f172a', padding: '4px 8px', borderRadius: '6px', border: '1px solid #334155' }}>
+              <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>Zoom:</span>
+              {[
+                { label: 'Auto', val: null },
+                { label: '60m', val: 60 },
+                { label: '120m', val: 120 },
+                { label: '300m', val: 300 }
+              ].map(opt => (
+                <button
+                  key={opt.label}
+                  onClick={() => setZoomHorizon(opt.val)}
+                  style={{
+                    backgroundColor: zoomHorizon === opt.val ? '#0284c7' : '#1e293b',
+                    color: zoomHorizon === opt.val ? '#fff' : '#94a3b8',
+                    border: '1px solid #334155',
+                    borderRadius: '4px',
+                    padding: '2px 7px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Gantt Legend */}
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', fontSize: '11px', color: '#94a3b8' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ width: '10px', height: '10px', backgroundColor: '#10b981', borderRadius: '2px' }}></span> Completed
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ width: '10px', height: '10px', backgroundColor: '#eab308', borderRadius: '2px' }}></span> Running (Sim Lock)
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ width: '10px', height: '10px', backgroundColor: '#0284c7', borderRadius: '2px' }}></span> Planned / Planned Future
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ width: '10px', height: '10px', backgroundColor: '#f43f5e', borderRadius: '2px' }}></span> Late / Slack Deficit
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ width: '2px', height: '14px', backgroundColor: '#f43f5e', display: 'inline-block' }}></span> Clock Marker
+              </span>
+            </div>
           </div>
         </div>
 
@@ -1425,16 +1525,20 @@ export default function App() {
                   />
                 </div>
                 <div>
-                  <label style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Priority (1-5)</label>
-                  <input 
-                    type="number" 
-                    value={newJob.priority} 
-                    min={1} 
-                    max={5}
-                    onChange={e => setNewJob({...newJob, priority: parseInt(e.target.value) || 1})}
+                  <label style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                    Priority (Urgency Level) *
+                  </label>
+                  <select
+                    value={newJob.priority}
+                    onChange={e => setNewJob({...newJob, priority: parseInt(e.target.value) || 3})}
                     style={{ width: '100%', padding: '8px', backgroundColor: '#0f172a', border: '1px solid #334155', color: '#fff', borderRadius: '4px', fontSize: '12px', boxSizing: 'border-box' }}
-                    required 
-                  />
+                  >
+                    <option value={5}>5 - Critical / Urgent (VIP)</option>
+                    <option value={4}>4 - High Urgency</option>
+                    <option value={3}>3 - Normal / Standard (Default)</option>
+                    <option value={2}>2 - Low Urgency</option>
+                    <option value={1}>1 - Routine / Fill-in</option>
+                  </select>
                 </div>
                 <div>
                   <label style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Due Date (mins) *</label>
