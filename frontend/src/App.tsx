@@ -688,7 +688,7 @@ export default function App() {
       {/* Simulation Engine Status Banner */}
       {(() => {
         const busyMachinesCount = machines.filter(m => m.status === 'BUSY').length;
-        const runningJobsCount = summaryCounts.IN_PROGRESS;
+        const runningJobsCount = summaryCounts.IN_PROGRESS + summaryCounts.NEAR_COMPLETION;
         const isRunning = Boolean(simStatus?.is_running);
         const simTime = Number(simStatus?.sim_time ?? currentSim ?? 0);
 
