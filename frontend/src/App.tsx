@@ -1092,8 +1092,8 @@ export default function App() {
                     Cap: {m.capability}
                   </div>
                   {/* Utilization denominator explanation */}
-                  <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>Planned / Actual:</span>
+                  <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <span>Plan/Act: </span>
                     <strong style={{ color: utilVal > 0 ? '#38bdf8' : '#64748b' }}>
                       {utilVal}% / {actualUtilPct}%
                     </strong>
@@ -1144,34 +1144,37 @@ export default function App() {
                 <span style={{ fontSize: '11px', color: '#fef08a', fontWeight: 'bold' }}>ML RECOMMENDED STRATEGY:</span>
                 <span style={{ fontSize: '11px', color: '#a3e635' }}>Confidence: {(recommendation.confidence * 100).toFixed(0)}%</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '3px' }}>
-                <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#fde047' }}>
-                  {recommendation.recommended_algorithm}
-                </div>
-                <button
-                  onClick={() => {
-                    const rec = recommendation.recommended_algorithm;
-                    setSelectedAlgo(rec);
-                    runRecalculation(rec);
-                  }}
-                  disabled={loading}
-                  style={{
-                    backgroundColor: '#eab308',
-                    color: '#0f172a',
-                    border: 'none',
-                    padding: '4px 10px',
-                    borderRadius: '5px',
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    cursor: loading ? 'wait' : 'pointer'
-                  }}
-                >
-                  ⚡ Apply Recommendation
-                </button>
+              <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#fde047', marginTop: '4px' }}>
+                {recommendation.recommended_algorithm}
               </div>
-              <p style={{ fontSize: '11px', color: '#cbd5e1', margin: '4px 0 0 0' }}>
+              <p style={{ fontSize: '11px', color: '#cbd5e1', margin: '4px 0 10px 0' }}>
                 {recommendation.reason}
               </p>
+              <button
+                onClick={() => {
+                  const rec = recommendation.recommended_algorithm;
+                  setSelectedAlgo(rec);
+                  runRecalculation(rec);
+                }}
+                disabled={loading}
+                style={{
+                  width: '100%',
+                  backgroundColor: '#eab308',
+                  color: '#0f172a',
+                  border: 'none',
+                  padding: '7px 12px',
+                  borderRadius: '5px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: loading ? 'wait' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+              >
+                ⚡ Apply {recommendation.recommended_algorithm} &amp; Re-Solve
+              </button>
             </div>
           )}
 
