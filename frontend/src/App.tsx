@@ -4,7 +4,7 @@ import {
   Cpu, FastForward, PlusCircle, 
   Layers, Activity, BarChart2, Zap,
   Clock, AlertTriangle, CheckCircle, RefreshCw,
-  Search, Filter, Trash2, X, Plus, Info
+  Search, Filter, Trash2, X, Plus, Info, Download, Play, Pause, Flame
 } from 'lucide-react';
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001/api').replace(/\/+$/, '');
@@ -119,6 +119,10 @@ export default function App() {
   const [zoomHorizon, setZoomHorizon] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [toastEvents, setToastEvents] = useState<{ id: string; text: string; time: string }[]>([]);
+  const [isAutoPlaying, setIsAutoPlaying] = useState(false);
+  const [playSpeed, setPlaySpeed] = useState<number>(1);
+  const [inspectedTask, setInspectedTask] = useState<ScheduledTask | null>(null);
   const getWriteConfig = () => {
     return {};
   };
@@ -209,12 +213,64 @@ export default function App() {
     }
   };
 
-  const advanceSim = async (mins: number) => {
+  const addToast = (text: string) => {
+    const id = `${Date.now()}_${Math.random()}`;
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setToastEvents(prev => [{ id, text, time: timeStr }, ...prev.slice(0, 4)]);
+    setTimeout(() => {
+      setToastEvents(prev => prev.filter(t => t.id !== id));
+    }, 4500);
+  };
+
+  const exportScheduleCSV = () => {
+    if (!schedule || !schedule.tasks || schedule.tasks.length === 0) {
+      alert("No schedule available to export. Register jobs or advance simulation first.");
+      return;
+    }
+    const headers = ["Job ID", "Job Name", "Operation Sequence", "Operation Name", "Machine ID", "Start Time (m)", "End Time (m)", "Duration (m)", "Status"];
+    const rows = schedule.tasks.map(t => [
+      `"${t.job_id}"`,
+      `"${t.job_name}"`,
+      t.operation_sequence,
+      `"${t.operation_name}"`,
+      t.machine_id,
+      t.start_time,
+      t.end_time,
+      t.duration,
+      t.is_completed ? "COMPLETED" : t.is_running ? "RUNNING" : "PLANNED"
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `production_schedule_${simStatus?.sim_time || 0}m.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    addToast("Exported production schedule to CSV.");
+  };
+
+  // Auto-play interval
+  useEffect(() => {
+    if (!isAutoPlaying) return;
+    const interval = setInterval(() => {
+      advanceSim(5, true);
+    }, Math.max(1000, 3000 / playSpeed));
+    return () => clearInterval(interval);
+  }, [isAutoPlaying, playSpeed]);
+
+  const advanceSim = async (mins: number, isAuto = false) => {
     setErrorMessage(null);
     try {
-      await axios.post(`${API_BASE}/simulation/advance?step_minutes=${mins}`, null, getWriteConfig());
+      const res = await axios.post(`${API_BASE}/simulation/advance?step_minutes=${mins}`, null, getWriteConfig());
+      if (res.data?.events && res.data.events.length > 0) {
+        res.data.events.forEach((ev: string) => addToast(ev));
+      } else {
+        addToast(`Clock advanced +${mins}m (Now t=${res.data?.current_sim_time ?? 0}m)`);
+      }
       await runRecalculation();
     } catch (e: any) {
+      if (isAuto) setIsAutoPlaying(false);
       setErrorMessage(formatApiError(e, "Failed to advance simulation clock."));
     }
   };
@@ -682,6 +738,59 @@ export default function App() {
             >
               <FastForward size={14} /> +60 min
             </button>
+
+            {/* Auto Play Simulation */}
+            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#0f172a', borderRadius: '6px', border: '1px solid #334155', padding: '2px' }}>
+              <button
+                onClick={() => setIsAutoPlaying(prev => !prev)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  backgroundColor: isAutoPlaying ? '#ef4444' : '#10b981',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '5px 10px',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  fontSize: '11px'
+                }}
+              >
+                {isAutoPlaying ? <Pause size={12} /> : <Play size={12} />}
+                {isAutoPlaying ? 'Pause Sim' : 'Auto Play'}
+              </button>
+              {isAutoPlaying && (
+                <div style={{ display: 'flex', gap: '2px', padding: '0 4px' }}>
+                  {[1, 2, 5].map(spd => (
+                    <button
+                      key={spd}
+                      onClick={() => setPlaySpeed(spd)}
+                      style={{
+                        backgroundColor: playSpeed === spd ? '#2563eb' : 'transparent',
+                        color: playSpeed === spd ? '#fff' : '#94a3b8',
+                        border: 'none',
+                        borderRadius: '3px',
+                        padding: '2px 5px',
+                        fontSize: '10px',
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {spd}x
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <button 
+              onClick={exportScheduleCSV}
+              title="Export current Gantt schedule and job dispatches as CSV"
+              style={{ display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: '#0f172a', border: '1px solid #38bdf8', color: '#38bdf8', padding: '7px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '12px' }}
+            >
+              <Download size={13} /> Export CSV
+            </button>
             <button 
               onClick={() => setShowAddJob(true)}
               style={{ display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: '#059669', border: 'none', color: '#fff', padding: '7px 14px', borderRadius: '6px', cursor: 'pointer', fontWeight: 700, fontSize: '12px' }}
@@ -1056,79 +1165,119 @@ export default function App() {
           </div>
 
           <div className="responsive-telemetry-grid">
-            {machines.map(m => {
-              const utilVal = schedule?.metrics?.machine_utilization?.[m.machine_id] ?? 0;
-              const isDown = m.status === 'DOWN' || m.status === 'MAINTENANCE';
-              const actualBusy = m.total_busy_time ?? 0;
-              const actualUtilPct = currentSim > 0 ? Math.min(100, Math.round((actualBusy / currentSim) * 100)) : 0;
-              return (
-                <div 
-                  key={m.machine_id}
-                  style={{ 
-                    backgroundColor: '#0f172a', 
-                    padding: '10px 12px', 
-                    borderRadius: '6px', 
-                    border: isDown ? '1px solid #f43f5e' : m.status === 'BUSY' ? '1px solid #f59e0b' : '1px solid #334155',
-                    position: 'relative'
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                    <span style={{ fontWeight: 'bold', fontSize: '13px', color: '#38bdf8' }}>{m.machine_id}</span>
-                    <span style={{ 
-                      fontSize: '9px', 
-                      fontWeight: 'bold', 
-                      padding: '2px 5px', 
-                      borderRadius: '3px',
-                      backgroundColor: isDown ? '#881337' : m.status === 'BUSY' ? '#78350f' : '#064e3b',
-                      color: isDown ? '#fda4af' : m.status === 'BUSY' ? '#fcd34d' : '#6ee7b7'
-                    }}>
-                      {m.status}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {m.name}
-                  </div>
-                  <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
-                    Cap: {m.capability}
-                  </div>
-                  {/* Utilization denominator explanation */}
-                  <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    <span>Plan/Act: </span>
-                    <strong style={{ color: utilVal > 0 ? '#38bdf8' : '#64748b' }}>
-                      {utilVal}% / {actualUtilPct}%
-                    </strong>
-                  </div>
-                  {m.status === 'BUSY' && (
-                    <div style={{ marginTop: '6px', fontSize: '10px', color: '#f59e0b', backgroundColor: '#451a03', padding: '3px', borderRadius: '3px' }}>
-                      Job {m.current_job_id} (rem: {m.remaining_processing_time}m)
+            {(() => {
+              // Find the bottleneck machine (highest utilization or longest queue)
+              let maxUtil = -1;
+              let bottleneckId = '';
+              machines.forEach(m => {
+                const u = schedule?.metrics?.machine_utilization?.[m.machine_id] ?? 0;
+                if (u > maxUtil && u > 40) {
+                  maxUtil = u;
+                  bottleneckId = m.machine_id;
+                }
+              });
+
+              return machines.map(m => {
+                const utilVal = schedule?.metrics?.machine_utilization?.[m.machine_id] ?? 0;
+                const isDown = m.status === 'DOWN' || m.status === 'MAINTENANCE';
+                const actualBusy = m.total_busy_time ?? 0;
+                const actualUtilPct = currentSim > 0 ? Math.min(100, Math.round((actualBusy / currentSim) * 100)) : 0;
+                const isBottleneck = m.machine_id === bottleneckId;
+
+                return (
+                  <div 
+                    key={m.machine_id}
+                    style={{ 
+                      backgroundColor: '#0f172a', 
+                      padding: '10px 12px', 
+                      borderRadius: '6px', 
+                      border: isDown ? '1px solid #f43f5e' : isBottleneck ? '1px solid #f97316' : m.status === 'BUSY' ? '1px solid #f59e0b' : '1px solid #334155',
+                      boxShadow: isBottleneck ? '0 0 10px rgba(249, 115, 22, 0.25)' : 'none',
+                      position: 'relative'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ fontWeight: 'bold', fontSize: '13px', color: '#38bdf8' }}>{m.machine_id}</span>
+                        {isBottleneck && (
+                          <span title="Bottleneck Machine (Highest Load)" style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', fontSize: '9px', fontWeight: 800, padding: '1px 4px', borderRadius: '3px', backgroundColor: '#7c2d12', color: '#fdba74' }}>
+                            <Flame size={10} color="#f97316" /> BOTTLENECK
+                          </span>
+                        )}
+                      </div>
+                      <span style={{ 
+                        fontSize: '9px', 
+                        fontWeight: 'bold', 
+                        padding: '2px 5px', 
+                        borderRadius: '3px',
+                        backgroundColor: isDown ? '#881337' : m.status === 'BUSY' ? '#78350f' : '#064e3b',
+                        color: isDown ? '#fda4af' : m.status === 'BUSY' ? '#fcd34d' : '#6ee7b7'
+                      }}>
+                        {m.status}
+                      </span>
                     </div>
-                  )}
-                  {isDown && (
-                    <div style={{ marginTop: '6px', fontSize: '10px', color: '#fda4af', backgroundColor: '#4c0519', padding: '3px', borderRadius: '3px' }}>
-                      Down (repair: {m.remaining_processing_time}m)
+                    <div style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {m.name}
                     </div>
-                  )}
-                  <div style={{ marginTop: '6px' }}>
-                    <button
-                      onClick={() => toggleMachineDowntime(m)}
-                      style={{
-                        width: '100%',
-                        fontSize: '10px',
-                        padding: '3px 6px',
-                        borderRadius: '4px',
-                        border: 'none',
-                        cursor: 'pointer',
-                        fontWeight: 600,
-                        backgroundColor: isDown ? '#059669' : '#334155',
-                        color: isDown ? '#fff' : '#cbd5e1'
-                      }}
-                    >
-                      {isDown ? 'Recover M/C' : 'Sim Breakdown (+20m)'}
-                    </button>
+                    <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
+                      Cap: {m.capability}
+                    </div>
+
+                    {/* Utilization Progress Bar */}
+                    <div style={{ marginTop: '5px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: '#94a3b8', marginBottom: '2px' }}>
+                        <span>Utilization</span>
+                        <strong style={{ color: utilVal > 0 ? '#38bdf8' : '#64748b' }}>{utilVal}%</strong>
+                      </div>
+                      <div style={{ width: '100%', height: '4px', backgroundColor: '#334155', borderRadius: '2px', overflow: 'hidden' }}>
+                        <div style={{
+                          width: `${Math.min(100, utilVal)}%`,
+                          height: '100%',
+                          backgroundColor: utilVal > 75 ? '#f97316' : utilVal > 40 ? '#38bdf8' : '#10b981',
+                          borderRadius: '2px'
+                        }} />
+                      </div>
+                    </div>
+
+                    {/* Utilization denominator explanation */}
+                    <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <span>Plan/Act: </span>
+                      <strong style={{ color: utilVal > 0 ? '#38bdf8' : '#64748b' }}>
+                        {utilVal}% / {actualUtilPct}%
+                      </strong>
+                    </div>
+                    {m.status === 'BUSY' && (
+                      <div style={{ marginTop: '6px', fontSize: '10px', color: '#f59e0b', backgroundColor: '#451a03', padding: '3px', borderRadius: '3px' }}>
+                        Job {m.current_job_id} (rem: {m.remaining_processing_time}m)
+                      </div>
+                    )}
+                    {isDown && (
+                      <div style={{ marginTop: '6px', fontSize: '10px', color: '#fda4af', backgroundColor: '#4c0519', padding: '3px', borderRadius: '3px' }}>
+                        Down (repair: {m.remaining_processing_time}m)
+                      </div>
+                    )}
+                    <div style={{ marginTop: '6px' }}>
+                      <button
+                        onClick={() => toggleMachineDowntime(m)}
+                        style={{
+                          width: '100%',
+                          fontSize: '10px',
+                          padding: '3px 6px',
+                          borderRadius: '4px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontWeight: 600,
+                          backgroundColor: isDown ? '#059669' : '#334155',
+                          color: isDown ? '#fff' : '#cbd5e1'
+                        }}
+                      >
+                        {isDown ? 'Recover M/C' : 'Sim Breakdown (+20m)'}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              });
+            })()}
           </div>
         </div>
 
@@ -1398,9 +1547,10 @@ export default function App() {
                     return (
                       <div 
                         key={idx}
+                        onClick={() => setInspectedTask(t)}
                         onMouseEnter={() => setHoveredTask(t)}
                         onMouseLeave={() => setHoveredTask(null)}
-                        title={`${t.job_name} (${t.job_id}): ${t.operation_name} [${t.start_time}m - ${t.end_time}m, dur: ${t.duration}m]`}
+                        title={`Click to inspect details: ${t.job_name} (${t.job_id}): ${t.operation_name}`}
                         style={{
                           position: 'absolute',
                           left: `${leftPct}%`,
@@ -1417,9 +1567,11 @@ export default function App() {
                           overflow: 'hidden',
                           whiteSpace: 'nowrap',
                           padding: '0 4px',
-                          boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.25)',
+                          boxShadow: inspectedTask?.job_id === t.job_id && inspectedTask?.operation_sequence === t.operation_sequence 
+                            ? '0 0 0 2px #fff, 0 0 8px #38bdf8' 
+                            : 'inset 0 0 0 1px rgba(255,255,255,0.25)',
                           cursor: 'pointer',
-                          transition: 'filter 0.15s ease'
+                          transition: 'all 0.15s ease'
                         }}
                       >
                         {t.job_id.replace('JOB_', '')}-Op{t.operation_sequence}
@@ -1722,6 +1874,107 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Feature 8: Click-to-Inspect Gantt Operation Modal */}
+      {inspectedTask && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+          <div style={{ backgroundColor: '#1e293b', border: '1px solid #38bdf8', borderRadius: '10px', width: '100%', maxWidth: '520px', padding: '22px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid #334155', paddingBottom: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <BarChart2 size={20} color="#38bdf8" />
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800 }}>Operation Execution Inspector</h3>
+              </div>
+              <button 
+                onClick={() => setInspectedTask(null)}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '12px', marginBottom: '16px' }}>
+              <div style={{ backgroundColor: '#0f172a', padding: '10px', borderRadius: '6px', border: '1px solid #334155' }}>
+                <span style={{ color: '#94a3b8', fontSize: '11px', display: 'block' }}>Job Identifier</span>
+                <strong style={{ color: '#38bdf8', fontSize: '14px' }}>{inspectedTask.job_id}</strong>
+                <div style={{ fontSize: '11px', color: '#cbd5e1' }}>{inspectedTask.job_name}</div>
+              </div>
+              <div style={{ backgroundColor: '#0f172a', padding: '10px', borderRadius: '6px', border: '1px solid #334155' }}>
+                <span style={{ color: '#94a3b8', fontSize: '11px', display: 'block' }}>Operation Stage</span>
+                <strong style={{ color: '#fde047', fontSize: '14px' }}>Stage #{inspectedTask.operation_sequence}</strong>
+                <div style={{ fontSize: '11px', color: '#cbd5e1' }}>{inspectedTask.operation_name}</div>
+              </div>
+              <div style={{ backgroundColor: '#0f172a', padding: '10px', borderRadius: '6px', border: '1px solid #334155' }}>
+                <span style={{ color: '#94a3b8', fontSize: '11px', display: 'block' }}>Assigned Machine</span>
+                <strong style={{ color: '#34d399', fontSize: '14px' }}>{inspectedTask.machine_id}</strong>
+                <div style={{ fontSize: '11px', color: '#cbd5e1' }}>
+                  {machines.find(m => m.machine_id === inspectedTask.machine_id)?.name || 'Work Center'}
+                </div>
+              </div>
+              <div style={{ backgroundColor: '#0f172a', padding: '10px', borderRadius: '6px', border: '1px solid #334155' }}>
+                <span style={{ color: '#94a3b8', fontSize: '11px', display: 'block' }}>Time Window</span>
+                <strong style={{ color: '#fff', fontSize: '14px' }}>{inspectedTask.start_time}m &rarr; {inspectedTask.end_time}m</strong>
+                <div style={{ fontSize: '11px', color: '#cbd5e1' }}>Duration: {inspectedTask.duration} mins</div>
+              </div>
+            </div>
+
+            {/* Execution status indicator */}
+            <div style={{ backgroundColor: '#0f172a', padding: '10px 14px', borderRadius: '6px', border: '1px solid #334155', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', color: '#94a3b8' }}>Physical Execution State:</span>
+              <span style={{
+                fontSize: '11px',
+                fontWeight: 700,
+                padding: '3px 8px',
+                borderRadius: '4px',
+                backgroundColor: inspectedTask.is_completed ? 'rgba(16, 185, 129, 0.2)' : inspectedTask.is_running ? 'rgba(234, 179, 8, 0.2)' : 'rgba(56, 189, 248, 0.2)',
+                color: inspectedTask.is_completed ? '#34d399' : inspectedTask.is_running ? '#facc15' : '#38bdf8'
+              }}>
+                {inspectedTask.is_completed ? '✓ Completed (Historical Locked)' : inspectedTask.is_running ? '⚡ Running on Machine (Locked)' : '📅 Planned Future (Active Schedule)'}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setInspectedTask(null)}
+                style={{ backgroundColor: '#2563eb', color: '#fff', border: 'none', padding: '7px 16px', borderRadius: '6px', fontWeight: 600, fontSize: '12px', cursor: 'pointer' }}
+              >
+                Close Inspector
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Feature 3: Live Slide-in Toast Event Notifications (Bottom Right) */}
+      <div style={{ position: 'fixed', bottom: '20px', right: '20px', display: 'flex', flexDirection: 'column', gap: '8px', zIndex: 999, maxWidth: '380px' }}>
+        {toastEvents.map(toast => (
+          <div 
+            key={toast.id}
+            style={{
+              backgroundColor: '#1e293b',
+              borderLeft: '4px solid #38bdf8',
+              borderTop: '1px solid #334155',
+              borderRight: '1px solid #334155',
+              borderBottom: '1px solid #334155',
+              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)',
+              padding: '10px 14px',
+              borderRadius: '6px',
+              color: '#f8fafc',
+              fontSize: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '10px',
+              animation: 'slideIn 0.2s ease-out'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Activity size={15} color="#38bdf8" />
+              <span>{toast.text}</span>
+            </div>
+            <span style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>{toast.time}</span>
+          </div>
+        ))}
+      </div>
 
     </div>
   );
