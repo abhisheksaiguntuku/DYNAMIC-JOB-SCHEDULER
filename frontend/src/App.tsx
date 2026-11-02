@@ -627,15 +627,33 @@ export default function App() {
             </div>
             <button 
               onClick={() => advanceSim(5)} 
-              style={{ display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: '#2563eb', border: 'none', color: '#fff', padding: '7px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '12px' }}
+              disabled={loading}
+              style={{ display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: loading ? '#1e3a8a' : '#2563eb', border: 'none', color: '#fff', padding: '7px 12px', borderRadius: '6px', cursor: loading ? 'wait' : 'pointer', fontWeight: 600, fontSize: '12px' }}
             >
               <FastForward size={14} /> +5 min
             </button>
             <button 
               onClick={() => advanceSim(15)} 
-              style={{ display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: '#1d4ed8', border: 'none', color: '#fff', padding: '7px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '12px' }}
+              disabled={loading}
+              style={{ display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: loading ? '#1e3a8a' : '#1d4ed8', border: 'none', color: '#fff', padding: '7px 12px', borderRadius: '6px', cursor: loading ? 'wait' : 'pointer', fontWeight: 600, fontSize: '12px' }}
             >
               <FastForward size={14} /> +15 min
+            </button>
+            <button 
+              onClick={() => advanceSim(30)} 
+              disabled={loading}
+              title="Fast forward simulation by 30 minutes"
+              style={{ display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: loading ? '#1e3a8a' : '#0284c7', border: 'none', color: '#fff', padding: '7px 12px', borderRadius: '6px', cursor: loading ? 'wait' : 'pointer', fontWeight: 600, fontSize: '12px' }}
+            >
+              <FastForward size={14} /> +30 min
+            </button>
+            <button 
+              onClick={() => advanceSim(60)} 
+              disabled={loading}
+              title="Fast forward simulation by 60 minutes (1 hour)"
+              style={{ display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: loading ? '#1e3a8a' : '#0369a1', border: 'none', color: '#fff', padding: '7px 12px', borderRadius: '6px', cursor: loading ? 'wait' : 'pointer', fontWeight: 600, fontSize: '12px' }}
+            >
+              <FastForward size={14} /> +60 min
             </button>
             <button 
               onClick={() => setShowAddJob(true)}
