@@ -617,7 +617,7 @@ export default function App() {
     <div style={{ minHeight: '100vh', backgroundColor: '#0b1120', color: '#f8fafc', fontFamily: 'system-ui, -apple-system, sans-serif', padding: '20px 24px' }}>
       
       {/* Top Header */}
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '8px' }}>
+      <header className="responsive-header">
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <Cpu style={{ color: '#38bdf8', width: 34, height: 34 }} />
@@ -630,7 +630,7 @@ export default function App() {
         </div>
 
         {/* Action Controls & Clock */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div className="responsive-header-actions">
           {/* Dynamic Workload Indicator */}
           <div style={{ backgroundColor: '#1e293b', padding: '6px 12px', borderRadius: '6px', border: '1px solid #334155', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Info size={14} color="#38bdf8" />
@@ -789,7 +789,7 @@ export default function App() {
 
       {/* Quick Metrics Bar */}
       {schedule && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '14px', marginBottom: '20px' }}>
+        <div className="responsive-metrics-grid">
           <div style={{ backgroundColor: '#1e293b', padding: '14px', borderRadius: '8px', borderLeft: '4px solid #38bdf8' }}>
             <span style={{ fontSize: '11px', color: '#94a3b8' }}>Makespan (Cmax)</span>
             <div style={{ fontSize: '20px', fontWeight: 'bold', marginTop: '2px' }}>{schedule.metrics.makespan} min</div>
@@ -1044,18 +1044,18 @@ export default function App() {
       </div>
 
       {/* Main Grid: Machine Telemetry & AI Strategy Recommendation */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px', marginBottom: '22px' }}>
+      <div className="responsive-main-grid">
         
         {/* Machine Telemetry Grid (All 10 Machines) */}
         <div style={{ backgroundColor: '#1e293b', padding: '18px 20px', borderRadius: '8px', border: '1px solid #334155' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
             <h2 style={{ fontSize: '17px', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Layers size={19} color="#38bdf8" /> 10-Machine Real-Time Factory Floor Telemetry
             </h2>
             <span style={{ fontSize: '11px', color: '#94a3b8' }}>M1–M5 Primary Stages | M6–M10 Parallel Aux Stations</span>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px' }}>
+          <div className="responsive-telemetry-grid">
             {machines.map(m => {
               const utilVal = schedule?.metrics?.machine_utilization?.[m.machine_id] ?? 0;
               const isDown = m.status === 'DOWN' || m.status === 'MAINTENANCE';
