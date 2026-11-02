@@ -329,6 +329,111 @@ class ProductionStateService:
                 db.close()
 
     @staticmethod
+    def delete_job(job_id: str) -> Dict[str, Any]:
+        """
+        Deletes an individual job if eligible:
+        - Rejects deletion if the job does not exist.
+        - Rejects deletion if any operation of the job is currently RUNNING on a machine.
+        - Removes the job from the database.
+        - Clears/recalculates future schedule.
+        - Returns confirmation metadata.
+        """
+        with ProductionStateService._lock:
+            db = SessionLocal()
+            try:
+                job_rec = db.query(JobModel).filter(JobModel.job_id == job_id).first()
+                if not job_rec:
+                    raise ValueError(f"Job '{job_id}' does not exist.")
+
+                # Check if any machine is currently executing an operation belonging to this job
+                busy_machine = db.query(MachineModel).filter(
+                    MachineModel.status == MachineStatus.BUSY.value,
+                    MachineModel.current_job_id == job_id
+                ).first()
+                if busy_machine:
+                    raise ValueError(
+                        f"Cannot delete job '{job_id}': Operation is currently RUNNING on {busy_machine.machine_id}."
+                    )
+
+                # Check inside operations_json for running operations
+                ops = job_rec.operations_json or []
+                if any(op.get("status") == OperationStatus.RUNNING.value for op in ops):
+                    raise ValueError(f"Cannot delete job '{job_id}': One or more operations are in RUNNING state.")
+
+                # Safe to delete
+                db.delete(job_rec)
+                ProductionStateService.increment_state_version(db)
+                db.commit()
+
+                # Recalculate schedule if jobs remain; if 0 jobs, clear schedule
+                remaining_jobs_count = db.query(JobModel).count()
+                sim_state = db.query(SimulationStateModel).filter(SimulationStateModel.id == 1).first()
+                curr_sim_time = float(sim_state.sim_time) if sim_state and sim_state.sim_time is not None else 0.0
+
+                fresh_schedule = None
+                if remaining_jobs_count > 0:
+                    try:
+                        fresh_schedule = ProductionStateService.recalculate_schedule(sim_time=curr_sim_time, algorithm="CPSAT")
+                    except Exception:
+                        try:
+                            fresh_schedule = ProductionStateService.recalculate_schedule(sim_time=curr_sim_time, algorithm="SPT")
+                        except Exception:
+                            pass
+                else:
+                    # Clean empty state: remove schedule records
+                    db.query(ScheduleRecordModel).delete()
+                    db.commit()
+
+                return {
+                    "deleted_job_id": job_id,
+                    "remaining_jobs_count": remaining_jobs_count,
+                    "schedule": fresh_schedule
+                }
+            finally:
+                db.close()
+
+    @staticmethod
+    def clear_all_jobs() -> Dict[str, Any]:
+        """
+        Clears all jobs and associated schedules, resetting the shop floor to a clean empty state.
+        Rejects if any machine is actively BUSY with a running operation.
+        """
+        with ProductionStateService._lock:
+            db = SessionLocal()
+            try:
+                busy_count = db.query(MachineModel).filter(MachineModel.status == MachineStatus.BUSY.value).count()
+                if busy_count > 0:
+                    raise ValueError("Cannot clear all jobs while machines are actively running operations.")
+
+                db.query(ScheduleRecordModel).delete()
+                deleted_count = db.query(JobModel).delete()
+
+                # Reset machine counters
+                machines = db.query(MachineModel).all()
+                for m in machines:
+                    m.status = MachineStatus.IDLE.value
+                    m.current_job_id = None
+                    m.current_operation_seq = None
+                    m.remaining_processing_time = 0.0
+                    m.total_busy_time = 0.0
+
+                # Reset simulation clock
+                sim_state = db.query(SimulationStateModel).filter(SimulationStateModel.id == 1).first()
+                if sim_state:
+                    sim_state.sim_time = 0.0
+                    sim_state.is_running = False
+                    sim_state.state_version = (sim_state.state_version or 1) + 1
+                    sim_state.updated_at = datetime.utcnow()
+
+                db.commit()
+                return {
+                    "cleared_jobs_count": deleted_count,
+                    "message": f"Successfully cleared all {deleted_count} jobs and reset schedules."
+                }
+            finally:
+                db.close()
+
+    @staticmethod
     def set_machine_downtime(machine_id: str, down_duration: float = 20.0, reason: str = "Breakdown") -> Machine:
         """
         Triggers a machine breakdown or maintenance event.

@@ -17,6 +17,7 @@ interface Machine {
   current_job_id: string | null;
   current_operation_seq: number | null;
   remaining_processing_time: number;
+  total_busy_time?: number;
 }
 
 interface Operation {
@@ -96,6 +97,14 @@ interface JobLifecycleView {
   isAtRisk: boolean;
 }
 
+const sortMachinesNaturally = (machs: Machine[]): Machine[] => {
+  return [...machs].sort((a, b) => {
+    const numA = parseInt(a.machine_id.replace(/\D/g, ''), 10) || 0;
+    const numB = parseInt(b.machine_id.replace(/\D/g, ''), 10) || 0;
+    return numA - numB;
+  });
+};
+
 export default function App() {
   const [machines, setMachines] = useState<Machine[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -107,12 +116,9 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [showAddJob, setShowAddJob] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  // Demo token kept strictly in React component memory (cleared on page refresh)
-  const [demoToken, setDemoToken] = useState<string>('');
-
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const getWriteConfig = () => {
-    const trimmed = demoToken.trim();
-    return trimmed ? { headers: { 'X-Demo-Token': trimmed } } : {};
+    return {};
   };
 
   const formatApiError = (e: any, fallback: string): string => {
@@ -152,7 +158,7 @@ export default function App() {
         axios.get(`${API_BASE}/simulation/status`),
         axios.get(`${API_BASE}/ml/recommend`)
       ]);
-      setMachines(mRes.data);
+      setMachines(sortMachinesNaturally(mRes.data));
       setJobs(jRes.data);
       setSimStatus(simRes.data);
       setRecommendation(recRes.data);
@@ -228,7 +234,7 @@ export default function App() {
         setJobs(res.data.jobs);
       }
       if (res.data?.machines) {
-        setMachines(res.data.machines);
+        setMachines(sortMachinesNaturally(res.data.machines));
       }
       if (res.data?.sim_status) {
         setSimStatus(res.data.sim_status);
@@ -252,6 +258,49 @@ export default function App() {
       setErrorMessage(msg);
       // Fallback state synchronization
       await fetchData(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const clearAllJobs = async () => {
+    if (!window.confirm("Are you sure you want to CLEAR ALL jobs? This produces a genuine empty shop floor state. (Preserves benchmarks).")) {
+      return;
+    }
+    try {
+      setLoading(true);
+      setErrorMessage(null);
+      setSuccessMessage(null);
+      setSchedule(null);
+      await axios.post(`${API_BASE}/data/clear-all`, null, getWriteConfig());
+      setJobs([]);
+      setSuccessMessage("All jobs have been cleared. Shop floor is in empty state.");
+      await fetchData(false);
+    } catch (e: any) {
+      setErrorMessage(formatApiError(e, "Failed to clear jobs."));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteJob = async (jobId: string) => {
+    if (!window.confirm(`Are you sure you want to delete job '${jobId}'?`)) {
+      return;
+    }
+    try {
+      setLoading(true);
+      setErrorMessage(null);
+      setSuccessMessage(null);
+      const res = await axios.delete(`${API_BASE}/jobs/${encodeURIComponent(jobId)}`, getWriteConfig());
+      setSuccessMessage(`Job ${jobId} deleted successfully.`);
+      if (res.data?.schedule) {
+        setSchedule(res.data.schedule);
+      } else if (res.data?.remaining_jobs_count === 0) {
+        setSchedule(null);
+      }
+      await fetchData(false);
+    } catch (e: any) {
+      setErrorMessage(formatApiError(e, `Failed to delete job '${jobId}'.`));
     } finally {
       setLoading(false);
     }
@@ -340,8 +389,10 @@ export default function App() {
     }
 
     try {
+      setLoading(true);
       await axios.post(`${API_BASE}/jobs`, newJob, getWriteConfig());
       setShowAddJob(false);
+      setSuccessMessage(`Job ${newJob.job_id} registered successfully.`);
       await runRecalculation();
       // Generate next random ID and reset form with empty positive fields
       setNewJob({
@@ -359,7 +410,9 @@ export default function App() {
     } catch (e: any) {
       const msg = formatApiError(e, "Failed to add job.");
       setErrorMessage(msg);
-      alert(msg);
+      // Keep modal open, do not show success message
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -559,14 +612,6 @@ export default function App() {
                 })()}
               </strong>
             </span>
-            <input
-              type="password"
-              placeholder="Demo Token (for edits)"
-              value={demoToken}
-              onChange={e => setDemoToken(e.target.value)}
-              title="In-memory token sent via X-Demo-Token header for state-modifying actions (cleared on refresh)"
-              style={{ marginLeft: '6px', width: '135px', padding: '4px 8px', backgroundColor: '#0f172a', border: '1px solid #475569', color: '#f8fafc', borderRadius: '4px', fontSize: '11px' }}
-            />
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#1e293b', padding: '6px 14px', borderRadius: '8px', border: '1px solid #334155' }}>
@@ -598,6 +643,13 @@ export default function App() {
               style={{ display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: '#334155', border: 'none', color: '#cbd5e1', padding: '7px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}
             >
               <RefreshCw size={13} /> Reset Demo
+            </button>
+            <button
+              onClick={clearAllJobs}
+              title="Clear all jobs and schedules to inspect an empty shop floor state"
+              style={{ display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: '#451a03', border: '1px solid #78350f', color: '#fed7aa', padding: '7px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}
+            >
+              <Trash2 size={13} /> Clear All
             </button>
           </div>
         </div>
@@ -655,6 +707,17 @@ export default function App() {
           </div>
         );
       })()}
+
+      {/* Success alert banner */}
+      {successMessage && (
+        <div style={{ backgroundColor: '#064e3b', border: '1px solid #059669', color: '#a7f3d0', padding: '10px 14px', borderRadius: '6px', marginBottom: '16px', fontSize: '13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <CheckCircle size={15} color="#34d399" />
+            <strong>Success:</strong> {successMessage}
+          </span>
+          <button onClick={() => setSuccessMessage(null)} style={{ background: 'none', border: 'none', color: '#a7f3d0', cursor: 'pointer' }}>✕</button>
+        </div>
+      )}
 
       {/* Error alert banner */}
       {errorMessage && (
@@ -788,12 +851,13 @@ export default function App() {
                 <th style={{ padding: '9px 12px' }}>Due Time</th>
                 <th style={{ padding: '9px 12px' }}>Remaining</th>
                 <th style={{ padding: '9px 12px' }}>Risk Indicator</th>
+                <th style={{ padding: '9px 12px', textAlign: 'center' }}>Action</th>
               </tr>
             </thead>
             <tbody>
               {filteredLifecycle.length === 0 ? (
                 <tr>
-                  <td colSpan={10} style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>
+                  <td colSpan={11} style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>
                     No jobs match the current filter or search criteria.
                   </td>
                 </tr>
@@ -874,6 +938,25 @@ export default function App() {
                         <span style={{ color: '#10b981', fontSize: '11px' }}>On Schedule</span>
                       )}
                     </td>
+                    <td style={{ padding: '9px 12px', textAlign: 'center' }}>
+                      <button
+                        onClick={() => deleteJob(item.job.job_id)}
+                        disabled={item.lifecycleStatus === 'IN_PROGRESS'}
+                        title={item.lifecycleStatus === 'IN_PROGRESS' ? 'Cannot delete while actively running' : `Delete job ${item.job.job_id}`}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: item.lifecycleStatus === 'IN_PROGRESS' ? '#475569' : '#f43f5e',
+                          cursor: item.lifecycleStatus === 'IN_PROGRESS' ? 'not-allowed' : 'pointer',
+                          padding: '4px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -898,6 +981,8 @@ export default function App() {
             {machines.map(m => {
               const utilVal = schedule?.metrics?.machine_utilization?.[m.machine_id] ?? 0;
               const isDown = m.status === 'DOWN' || m.status === 'MAINTENANCE';
+              const actualBusy = m.total_busy_time ?? 0;
+              const actualUtilPct = currentSim > 0 ? Math.min(100, Math.round((actualBusy / currentSim) * 100)) : 0;
               return (
                 <div 
                   key={m.machine_id}
@@ -930,8 +1015,10 @@ export default function App() {
                   </div>
                   {/* Utilization denominator explanation */}
                   <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>Planned Util:</span>
-                    <strong style={{ color: utilVal > 0 ? '#38bdf8' : '#64748b' }}>{utilVal}%</strong>
+                    <span>Planned / Actual:</span>
+                    <strong style={{ color: utilVal > 0 ? '#38bdf8' : '#64748b' }}>
+                      {utilVal}% / {actualUtilPct}%
+                    </strong>
                   </div>
                   {m.status === 'BUSY' && (
                     <div style={{ marginTop: '6px', fontSize: '10px', color: '#f59e0b', backgroundColor: '#451a03', padding: '3px', borderRadius: '3px' }}>

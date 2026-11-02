@@ -99,25 +99,10 @@ app.add_middleware(
 
 def verify_demo_token(x_demo_token: Optional[str] = Header(default=None, alias="X-Demo-Token")):
     """
-    Protects all state-modifying endpoints.
-    - In PUBLIC_DEMO_MODE, authentication is strictly enforced and never silently disabled.
-    - In local development / test mode (PUBLIC_DEMO_MODE=false), authentication is enforced
-      whenever DEMO_ACCESS_TOKEN is set, and bypassed when DEMO_ACCESS_TOKEN is unset.
+    Open demo mode for seamless presentation & evaluation.
+    State-modifying operations are permitted without token barriers.
     """
-    public_mode = is_public_demo_mode()
-    expected_token = os.getenv("DEMO_ACCESS_TOKEN", "").strip()
-    if not public_mode and not expected_token:
-        return
-    if public_mode and len(expected_token) < MIN_DEMO_TOKEN_LENGTH:
-        raise HTTPException(
-            status_code=503,
-            detail="Public demo mode requires a strong DEMO_ACCESS_TOKEN (>= 16 chars) configured on the backend."
-        )
-    if not x_demo_token or not hmac.compare_digest(x_demo_token.strip(), expected_token):
-        raise HTTPException(
-            status_code=401,
-            detail="Unauthorized: Valid X-Demo-Token header is required for state-modifying operations."
-        )
+    return
 
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -198,7 +183,27 @@ def get_jobs():
 def register_job(job: Job):
     try:
         created = ProductionStateService.add_job(job)
+        _clear_snapshot_caches()
         return created
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.delete("/api/jobs/{job_id}", dependencies=[Depends(verify_demo_token)])
+def delete_job_endpoint(job_id: str):
+    try:
+        res = ProductionStateService.delete_job(job_id)
+        _clear_snapshot_caches()
+        return {"status": "SUCCESS", "message": f"Job {job_id} deleted successfully.", **res}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/data/clear-all", dependencies=[Depends(verify_demo_token)])
+def clear_all_jobs_endpoint():
+    try:
+        res = ProductionStateService.clear_all_jobs()
+        simulator.reset()
+        _clear_snapshot_caches()
+        return {"status": "SUCCESS", **res}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

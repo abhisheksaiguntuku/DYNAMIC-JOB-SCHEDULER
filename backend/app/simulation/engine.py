@@ -130,10 +130,11 @@ class DiscreteEventSimulator:
                 ops = j.operations_json or []
                 sorted_ops = sorted(ops, key=lambda x: x["sequence"])
                 for idx, op in enumerate(sorted_ops):
-                    if op["status"] == OperationStatus.COMPLETED.value:
+                    op_status = op.get("status", OperationStatus.PENDING.value)
+                    if op_status == OperationStatus.COMPLETED.value:
                         continue
-                    elif op["status"] == OperationStatus.PENDING.value:
-                        preds_completed = all(p["status"] == OperationStatus.COMPLETED.value for p in sorted_ops[:idx])
+                    elif op_status == OperationStatus.PENDING.value:
+                        preds_completed = all(p.get("status", OperationStatus.PENDING.value) == OperationStatus.COMPLETED.value for p in sorted_ops[:idx])
                         if preds_completed:
                             ready_candidates.append((j, op))
                     break
@@ -237,10 +238,10 @@ class DiscreteEventSimulator:
                                     all_done = True
                                     for op in j_rec.operations_json:
                                         op_copy = dict(op)
-                                        if op_copy["sequence"] == finished_seq:
+                                        if op_copy.get("sequence") == finished_seq:
                                             op_copy["status"] = OperationStatus.COMPLETED.value
                                             op_copy["end_time"] = self.sim_time
-                                        elif op_copy["status"] != OperationStatus.COMPLETED.value:
+                                        elif op_copy.get("status", OperationStatus.PENDING.value) != OperationStatus.COMPLETED.value:
                                             all_done = False
                                         new_ops.append(op_copy)
                                     j_rec.operations_json = new_ops
