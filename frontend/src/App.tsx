@@ -4,7 +4,7 @@ import {
   Cpu, FastForward, PlusCircle, 
   Layers, Activity, BarChart2, Zap,
   Clock, AlertTriangle, CheckCircle, RefreshCw,
-  Search, Filter, Trash2, X, Plus, Info, Download, Play, Pause, Flame
+  Search, Filter, Trash2, X, Plus, Info, Download, Play, Pause, Flame, HelpCircle
 } from 'lucide-react';
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001/api').replace(/\/+$/, '');
@@ -123,6 +123,8 @@ export default function App() {
   const [isAutoPlaying, setIsAutoPlaying] = useState(false);
   const [playSpeed, setPlaySpeed] = useState<number>(1);
   const [inspectedTask, setInspectedTask] = useState<ScheduledTask | null>(null);
+  const [showTour, setShowTour] = useState(false);
+  const [tourStep, setTourStep] = useState(0);
   const getWriteConfig = () => {
     return {};
   };
@@ -682,6 +684,29 @@ export default function App() {
                 AI Dynamic Job-Shop Scheduling System
               </h1>
             </div>
+            <button
+              onClick={() => {
+                setShowTour(true);
+                setTourStep(0);
+              }}
+              title="Interactive system guide and feature walkthrough"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                backgroundColor: 'rgba(56, 189, 248, 0.15)',
+                border: '1px solid #38bdf8',
+                color: '#38bdf8',
+                padding: '4px 10px',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '11px',
+                fontWeight: 700,
+                marginLeft: '6px'
+              }}
+            >
+              <HelpCircle size={14} /> How It Works
+            </button>
           </div>
         </div>
 
@@ -1975,6 +2000,153 @@ export default function App() {
           </div>
         ))}
       </div>
+
+      {/* Interactive System Guide / Feature Walkthrough Modal */}
+      {showTour && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: '20px' }}>
+          <div style={{ backgroundColor: '#1e293b', border: '1px solid #38bdf8', borderRadius: '12px', width: '100%', maxWidth: '580px', padding: '24px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)' }}>
+            
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #334155', paddingBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Zap size={20} color="#38bdf8" />
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800 }}>
+                  System Walkthrough ({tourStep + 1} of 5)
+                </h3>
+              </div>
+              <button 
+                onClick={() => setShowTour(false)}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Tour Steps Content */}
+            {tourStep === 0 && (
+              <div>
+                <div style={{ fontSize: '15px', fontWeight: 700, color: '#38bdf8', marginBottom: '8px' }}>
+                  1. 10-Machine Production Floor &amp; Bottleneck Detection
+                </div>
+                <p style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: '155%', marginBottom: '12px' }}>
+                  The factory consists of 10 physical machines (M1–M5 primary production stages, M6–M10 parallel auxiliary stations).
+                  Each card shows live status (IDLE, BUSY, DOWN), remaining duration, and real-time utilization progress bars.
+                  The machine with the highest congestion is automatically flagged with an orange <strong>🔥 BOTTLENECK</strong> badge.
+                </p>
+                <div style={{ backgroundColor: '#0f172a', padding: '10px', borderRadius: '6px', fontSize: '12px', color: '#94a3b8' }}>
+                  💡 <em>You can click <strong>"Sim Breakdown (+20m)"</strong> on any machine to test dynamic machine failure!</em>
+                </div>
+              </div>
+            )}
+
+            {tourStep === 1 && (
+              <div>
+                <div style={{ fontSize: '15px', fontWeight: 700, color: '#38bdf8', marginBottom: '8px' }}>
+                  2. Dynamic Flexible Job Registration
+                </div>
+                <p style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: '155%', marginBottom: '12px' }}>
+                  Click <strong>"+ Add Dynamic Job"</strong> to inject brand new custom customer orders with custom due dates, operation routings, and priority weights (P5 Critical to P1 Routine).
+                  The flexible scheduler automatically checks eligible alternative machines to prevent idle waiting gaps.
+                </p>
+                <div style={{ backgroundColor: '#0f172a', padding: '10px', borderRadius: '6px', fontSize: '12px', color: '#94a3b8' }}>
+                  💡 <em>If someone enters a wrong job by mistake, click the <strong>Trash icon</strong> on any queued job to remove it cleanly.</em>
+                </div>
+              </div>
+            )}
+
+            {tourStep === 2 && (
+              <div>
+                <div style={{ fontSize: '15px', fontWeight: 700, color: '#38bdf8', marginBottom: '8px' }}>
+                  3. Virtual Clock &amp; Auto-Play Simulation
+                </div>
+                <p style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: '155%', marginBottom: '12px' }}>
+                  Use the <strong>+5 min, +15 min, +30 min, and +60 min</strong> buttons to advance virtual production time.
+                  As time advances, running operations complete, finished machines turn back to IDLE, and next stages automatically dispatch.
+                  Or click <strong>"Auto Play" (1x, 2x, 5x)</strong> to watch the entire factory run live hands-free!
+                </p>
+                <div style={{ backgroundColor: '#0f172a', padding: '10px', borderRadius: '6px', fontSize: '12px', color: '#94a3b8' }}>
+                  💡 <em>Live slide-in notifications appear in the bottom-right corner whenever operations finish.</em>
+                </div>
+              </div>
+            )}
+
+            {tourStep === 3 && (
+              <div>
+                <div style={{ fontSize: '15px', fontWeight: 700, color: '#38bdf8', marginBottom: '8px' }}>
+                  4. Interactive Dynamic Production Gantt Chart
+                </div>
+                <p style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: '155%', marginBottom: '12px' }}>
+                  The Gantt chart displays all 10 machines across the production horizon.
+                  Operations are color-coded: <strong style={{ color: '#10b981' }}>Green (Completed)</strong>, <strong style={{ color: '#eab308' }}>Yellow (Running Locked)</strong>, <strong style={{ color: '#0284c7' }}>Blue (Planned Future)</strong>, and <strong style={{ color: '#f43f5e' }}>Red (At-Risk Lateness)</strong>.
+                  Use the <strong>Zoom buttons (Auto, 60m, 120m, 300m)</strong> to magnify short operations, and <strong>click any block</strong> to inspect complete operation metadata!
+                </p>
+              </div>
+            )}
+
+            {tourStep === 4 && (
+              <div>
+                <div style={{ fontSize: '15px', fontWeight: 700, color: '#38bdf8', marginBottom: '8px' }}>
+                  5. AI Strategy Advisor &amp; Benchmark Matrix
+                </div>
+                <p style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: '155%', marginBottom: '12px' }}>
+                  The <strong>AI Strategy Advisor</strong> monitors factory congestion and recommends the optimal dispatching rule (SPT, EDD, CR, AGING, or CP-SAT).
+                  Click <strong>"⚡ Apply Recommendation"</strong> to re-solve in 1 click!
+                  The Fair Benchmark Matrix live-compares all 6 algorithms side-by-side on Makespan, Tardiness, Late Jobs, and Latency.
+                </p>
+                <div style={{ backgroundColor: '#0f172a', padding: '10px', borderRadius: '6px', fontSize: '12px', color: '#94a3b8' }}>
+                  💡 <em>Click <strong>"Export CSV"</strong> anytime to download the active schedule for reports and evaluation.</em>
+                </div>
+              </div>
+            )}
+
+            {/* Step Controls */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', borderTop: '1px solid #334155', paddingTop: '14px' }}>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                {[0, 1, 2, 3, 4].map(idx => (
+                  <div 
+                    key={idx}
+                    style={{
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '50%',
+                      backgroundColor: tourStep === idx ? '#38bdf8' : '#334155',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => setTourStep(idx)}
+                  />
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {tourStep > 0 && (
+                  <button
+                    onClick={() => setTourStep(prev => prev - 1)}
+                    style={{ backgroundColor: '#334155', color: '#cbd5e1', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}
+                  >
+                    Back
+                  </button>
+                )}
+                {tourStep < 4 ? (
+                  <button
+                    onClick={() => setTourStep(prev => prev + 1)}
+                    style={{ backgroundColor: '#2563eb', color: '#fff', border: 'none', padding: '6px 16px', borderRadius: '6px', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
+                  >
+                    Next &rarr;
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowTour(false)}
+                    style={{ backgroundColor: '#059669', color: '#fff', border: 'none', padding: '6px 16px', borderRadius: '6px', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
+                  >
+                    Got It! (Finish)
+                  </button>
+                )}
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );
