@@ -272,6 +272,8 @@ export default function App() {
       setErrorMessage(null);
       setSuccessMessage(null);
       setSchedule(null);
+      setComparison(null);
+      setRecommendation(null);
       await axios.post(`${API_BASE}/data/clear-all`, null, getWriteConfig());
       setJobs([]);
       setSuccessMessage("All jobs have been cleared. Shop floor is in empty state.");
@@ -390,8 +392,9 @@ export default function App() {
 
     try {
       setLoading(true);
-      await axios.post(`${API_BASE}/jobs`, newJob, getWriteConfig());
       setShowAddJob(false);
+      setSuccessMessage(`Registering job ${newJob.job_id}...`);
+      await axios.post(`${API_BASE}/jobs`, newJob, getWriteConfig());
       setSuccessMessage(`Job ${newJob.job_id} registered successfully.`);
       await runRecalculation();
       // Generate next random ID and reset form with empty positive fields
@@ -408,9 +411,9 @@ export default function App() {
         ]
       });
     } catch (e: any) {
+      setShowAddJob(true);
       const msg = formatApiError(e, "Failed to add job.");
       setErrorMessage(msg);
-      // Keep modal open, do not show success message
     } finally {
       setLoading(false);
     }
@@ -1060,7 +1063,7 @@ export default function App() {
             <Zap size={19} color="#eab308" /> AI Strategy Advisor &amp; Dispatch
           </h2>
 
-          {recommendation && (
+          {jobs.length > 0 && recommendation && (
             <div style={{ backgroundColor: '#0f172a', padding: '12px 14px', borderRadius: '6px', border: '1px solid #ca8a04', marginBottom: '14px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '11px', color: '#fef08a', fontWeight: 'bold' }}>ML RECOMMENDED STRATEGY:</span>
@@ -1301,7 +1304,7 @@ export default function App() {
       </div>
 
       {/* Algorithm Benchmark Comparison Matrix */}
-      {comparison && (
+      {jobs.length > 0 && comparison && (
         <div style={{ backgroundColor: '#1e293b', padding: '18px 20px', borderRadius: '8px', border: '1px solid #334155' }}>
           <h2 style={{ fontSize: '17px', fontWeight: 800, margin: '0 0 14px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Activity size={19} color="#10b981" /> Fair Algorithm Benchmark &amp; Performance Matrix
