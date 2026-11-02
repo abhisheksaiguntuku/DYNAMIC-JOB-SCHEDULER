@@ -164,14 +164,18 @@ def get_machines():
 @app.post("/api/machines/{machine_id}/downtime", response_model=Machine, dependencies=[Depends(verify_demo_token)])
 def trigger_machine_downtime(machine_id: str, duration: float = Query(20.0, gt=0.0), reason: str = Query("Breakdown")):
     try:
-        return ProductionStateService.set_machine_downtime(machine_id, down_duration=duration, reason=reason)
+        res = ProductionStateService.set_machine_downtime(machine_id, down_duration=duration, reason=reason)
+        _clear_snapshot_caches()
+        return res
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/api/machines/{machine_id}/recover", response_model=Machine, dependencies=[Depends(verify_demo_token)])
 def recover_machine_endpoint(machine_id: str):
     try:
-        return ProductionStateService.recover_machine(machine_id)
+        res = ProductionStateService.recover_machine(machine_id)
+        _clear_snapshot_caches()
+        return res
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -259,7 +263,7 @@ def compare_all_algorithms():
             res = DispatchHeuristicScheduler.schedule(jobs, machines, current_time, rule=rule)
             results[rule] = res.metrics.dict()
 
-        cpsat_res = CPSATSchedulingOptimizer.optimize(jobs, machines, current_time, time_limit_seconds=2.0)
+        cpsat_res = CPSATSchedulingOptimizer.optimize(jobs, machines, current_time, time_limit_seconds=0.5)
         results["OR-TOOLS CP-SAT"] = cpsat_res.metrics.dict()
         _comparison_snapshot_cache["key"] = cache_key
         _comparison_snapshot_cache["result"] = results
@@ -275,7 +279,9 @@ def recommend_strategy():
 @app.post("/api/simulation/advance", dependencies=[Depends(verify_demo_token)])
 def advance_simulation(step_minutes: float = Query(5.0)):
     try:
-        return simulator.advance_time(step_minutes)
+        res = simulator.advance_time(step_minutes)
+        _clear_snapshot_caches()
+        return res
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

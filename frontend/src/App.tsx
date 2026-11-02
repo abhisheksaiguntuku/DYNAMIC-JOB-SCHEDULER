@@ -184,14 +184,20 @@ export default function App() {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const res = await axios.post(`${API_BASE}/schedules/recalculate?algorithm=${algo}`, null, getWriteConfig());
-      setSchedule(res.data);
-      // Run comparison and fetchData in parallel to cut latency in half
-      const [compRes] = await Promise.all([
+      const [recalcRes, compRes, mRes, jRes, simRes, recRes] = await Promise.all([
+        axios.post(`${API_BASE}/schedules/recalculate?algorithm=${algo}`, null, getWriteConfig()),
         axios.get(`${API_BASE}/schedules/compare`),
-        fetchData()
+        axios.get(`${API_BASE}/machines`),
+        axios.get(`${API_BASE}/jobs`),
+        axios.get(`${API_BASE}/simulation/status`),
+        axios.get(`${API_BASE}/ml/recommend`)
       ]);
+      setSchedule(recalcRes.data);
       setComparison(compRes.data);
+      setMachines(sortMachinesNaturally(mRes.data));
+      setJobs(jRes.data);
+      setSimStatus(simRes.data);
+      setRecommendation(recRes.data);
     } catch (e: any) {
       setErrorMessage(formatApiError(e, "Recalculation failed."));
     } finally {

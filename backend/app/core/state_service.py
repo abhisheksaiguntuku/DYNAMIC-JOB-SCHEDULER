@@ -518,7 +518,7 @@ class ProductionStateService:
     def recalculate_schedule(
         sim_time: float = 0.0,
         algorithm: str = "CPSAT",
-        time_limit_seconds: float = 3.0,
+        time_limit_seconds: float = 1.0,
         expected_state_version: Optional[int] = None,
         expected_sim_time: Optional[float] = None
     ) -> ScheduleResult:
