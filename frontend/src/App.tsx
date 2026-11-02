@@ -186,9 +186,12 @@ export default function App() {
     try {
       const res = await axios.post(`${API_BASE}/schedules/recalculate?algorithm=${algo}`, null, getWriteConfig());
       setSchedule(res.data);
-      const compRes = await axios.get(`${API_BASE}/schedules/compare`);
+      // Run comparison and fetchData in parallel to cut latency in half
+      const [compRes] = await Promise.all([
+        axios.get(`${API_BASE}/schedules/compare`),
+        fetchData()
+      ]);
       setComparison(compRes.data);
-      await fetchData();
     } catch (e: any) {
       setErrorMessage(formatApiError(e, "Recalculation failed."));
     } finally {
