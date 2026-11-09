@@ -867,14 +867,6 @@ export default function App() {
               <Upload size={14} /> {fileUploading ? 'Uploading...' : 'Upload Excel/CSV'}
               <input type="file" accept=".xlsx,.xls,.csv" onChange={handleFileUpload} disabled={fileUploading} style={{ display: 'none' }} />
             </label>
-            <a 
-              href={`${API_BASE}/jobs/template/download`}
-              download="job_import_template.xlsx"
-              style={{ display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: '#334155', border: 'none', color: '#cbd5e1', padding: '7px 10px', borderRadius: '6px', textDecoration: 'none', fontSize: '12px', fontWeight: 500 }}
-              title="Download sample Excel template"
-            >
-              <Download size={13} /> Template
-            </a>
             <button 
               onClick={() => setShowAddJob(true)}
               style={{ display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: '#059669', border: 'none', color: '#fff', padding: '7px 14px', borderRadius: '6px', cursor: 'pointer', fontWeight: 700, fontSize: '12px' }}
