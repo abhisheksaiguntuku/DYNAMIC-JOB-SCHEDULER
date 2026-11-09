@@ -285,7 +285,8 @@ def build_100_page_master_pdf(output_filename="DYNAMIC_JOB_SHOP_SCHEDULER_COMPRE
 
     # 2. DOCUMENTATION MANIFEST / ORDER OF VOLUMES
     doc_groups = [
-        ("PART I: FOUNDATIONS & SYSTEM OVERVIEW", [
+        ("PART I: COMPLETE BEGINNER & OPERATOR HANDBOOK", [
+            ("docs/ultimate_project_documentation/00_BEGINNER_MASTER_HANDBOOK/COMPLETE_BEGINNER_AND_OPERATOR_GUIDE.md", "Kid-Friendly Illustrated Guide: What Every Button & Machine Means"),
             ("docs/ultimate_project_documentation/01_PROJECT_OVERVIEW/PROJECT_OVERVIEW.md", "Executive System Overview & Business Problem"),
             ("README.md", "Repository Architecture & Quickstart Manual"),
             ("ARCHITECTURE.md", "High-Level Architectural Schematics & Subsystems"),
