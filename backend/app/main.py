@@ -1,7 +1,10 @@
 import hmac
+import io
 import os
 import threading
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+import pandas as pd
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, UploadFile, File
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
@@ -192,6 +195,156 @@ def register_job(job: Job):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@app.put("/api/jobs/{job_id}", dependencies=[Depends(verify_demo_token)])
+def update_job_endpoint(job_id: str, job: Job):
+    try:
+        updated = ProductionStateService.update_job(job_id, job)
+        _clear_snapshot_caches()
+        return updated
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/api/jobs/template/download")
+def download_excel_template():
+    """Generates and downloads a clean sample Excel template for batch job uploads."""
+    sample_data = [
+        {"Job": "J1", "Name": "Coupler", "M1": 8, "M2": 4, "M3": 4, "M4": 24, "M5": 6, "Due_Date": 116},
+        {"Job": "J2", "Name": "Knuckle", "M1": 6, "M2": 2, "M3": 4, "M4": 24, "M5": 2, "Due_Date": 120},
+        {"Job": "J3", "Name": "Side Frame", "M1": 10, "M2": 6, "M3": 8, "M4": 22, "M5": 8, "Due_Date": 114},
+        {"Job": "J4", "Name": "Bogie Bolster", "M1": 12, "M2": 8, "M3": 6, "M4": 24, "M5": 6, "Due_Date": 116},
+        {"Job": "J5", "Name": "PRS Xing", "M1": 14, "M2": 4, "M3": 8, "M4": 28, "M5": 8, "Due_Date": 114},
+    ]
+    df = pd.DataFrame(sample_data)
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Production_Jobs")
+    output.seek(0)
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=job_import_template.xlsx"}
+    )
+
+@app.post("/api/jobs/upload", dependencies=[Depends(verify_demo_token)])
+async def upload_jobs_file(file: UploadFile = File(...)):
+    """
+    Parses an uploaded Excel (.xlsx) or CSV file and batch registers jobs.
+    Supports columns: Job / Job_ID, Name / Product, M1..M10 durations, Due_Date / DueDate / DD, Arrival (optional).
+    """
+    content = await file.read()
+    filename = file.filename.lower()
+    try:
+        if filename.endswith(".csv"):
+            df = pd.read_csv(io.BytesIO(content))
+        elif filename.endswith((".xlsx", ".xls")):
+            df = pd.read_excel(io.BytesIO(content))
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported file format. Please upload an .xlsx or .csv file.")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to parse file: {str(e)}")
+
+    if df.empty:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+    # Normalize column names
+    col_map = {str(c).strip().upper(): c for c in df.columns}
+    
+    # Identify job ID column
+    job_col = None
+    for cand in ["JOB", "JOB_ID", "JOBID", "WORK ORDER", "WORK_ORDER"]:
+        if cand in col_map:
+            job_col = col_map[cand]
+            break
+    if not job_col:
+        # Fallback to first column
+        job_col = df.columns[0]
+
+    # Name column
+    name_col = None
+    for cand in ["NAME", "PRODUCT", "PRODUCT_NAME", "JOB_NAME", "DESCRIPTION"]:
+        if cand in col_map:
+            name_col = col_map[cand]
+            break
+
+    # Due date column
+    dd_col = None
+    for cand in ["DUE_DATE", "DUEDATE", "DD", "DUE DATE", "DUE"]:
+        if cand in col_map:
+            dd_col = col_map[cand]
+            break
+
+    # Machine duration columns (e.g. M1, M2, M3... or Machine1, Machine 2)
+    m_cols = []
+    for c in df.columns:
+        c_str = str(c).strip().upper()
+        if c_str.startswith("M") and len(c_str) <= 3 and c_str[1:].isdigit():
+            m_cols.append((int(c_str[1:]), c))
+        elif "MACHINE" in c_str:
+            num = "".join(filter(str.isdigit, c_str))
+            if num:
+                m_cols.append((int(num), c))
+    m_cols.sort(key=lambda x: x[0])
+
+    if not m_cols:
+        raise HTTPException(status_code=400, detail="No machine duration columns found (e.g., M1, M2, M3...).")
+
+    from app.schemas.models import Operation
+
+    registered_jobs = []
+    simulator.load_state()
+    curr_sim = simulator.sim_time
+
+    for _, row in df.iterrows():
+        raw_jid = str(row[job_col]).strip()
+        if not raw_jid or raw_jid.lower() == "nan":
+            continue
+        # Prefix with JOB_ if purely numeric
+        j_id = f"JOB_{raw_jid}" if raw_jid.isdigit() else raw_jid
+        j_name = str(row[name_col]).strip() if (name_col and pd.notna(row[name_col])) else j_id
+        dd_val = float(row[dd_col]) if (dd_col and pd.notna(row[dd_col]) and float(row[dd_col]) > 0) else None
+
+        ops = []
+        seq = 1
+        for m_num, col_name in m_cols:
+            val = row[col_name]
+            if pd.notna(val) and float(val) > 0:
+                ops.append(Operation(
+                    sequence=seq,
+                    name=f"Stage M{m_num}",
+                    machine_id=f"M{m_num}",
+                    duration=float(val)
+                ))
+                seq += 1
+
+        if not ops:
+            continue
+
+        new_job = Job(
+            job_id=j_id,
+            name=j_name,
+            product_type="Uploaded Component",
+            arrival_time=curr_sim,
+            due_date=dd_val,
+            operations=ops
+        )
+        try:
+            created = ProductionStateService.add_job(new_job)
+            registered_jobs.append(created.job_id)
+        except Exception:
+            # If job already exists, update it
+            try:
+                ProductionStateService.update_job(j_id, new_job)
+                registered_jobs.append(j_id)
+            except Exception as e:
+                pass
+
+    _clear_snapshot_caches()
+    return {
+        "status": "SUCCESS",
+        "message": f"Successfully processed {len(registered_jobs)} jobs from {file.filename}.",
+        "imported_jobs": registered_jobs
+    }
+
 @app.delete("/api/jobs/{job_id}", dependencies=[Depends(verify_demo_token)])
 def delete_job_endpoint(job_id: str):
     try:
@@ -259,7 +412,7 @@ def compare_all_algorithms():
         current_time = simulator.sim_time
 
         results = {}
-        for rule in ["FCFS", "SPT", "EDD", "CR", "AGING"]:
+        for rule in ["FCFS", "SPT", "EDD", "CR", "AGING", "PALMER"]:
             res = DispatchHeuristicScheduler.schedule(jobs, machines, current_time, rule=rule)
             results[rule] = res.metrics.dict()
 

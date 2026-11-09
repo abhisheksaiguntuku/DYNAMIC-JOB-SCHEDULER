@@ -4,7 +4,7 @@ import {
   Cpu, FastForward, PlusCircle, 
   Layers, Activity, BarChart2, Zap,
   Clock, AlertTriangle, CheckCircle, RefreshCw,
-  Search, Filter, Trash2, X, Plus, Info, Download, Play, Pause, Flame, HelpCircle
+  Search, Filter, Trash2, X, Plus, Edit3, Upload, Info, Download, Play, Pause, Flame, HelpCircle
 } from 'lucide-react';
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001/api').replace(/\/+$/, '');
@@ -123,6 +123,8 @@ export default function App() {
   const [isAutoPlaying, setIsAutoPlaying] = useState(false);
   const [playSpeed, setPlaySpeed] = useState<number>(1);
   const [inspectedTask, setInspectedTask] = useState<ScheduledTask | null>(null);
+  const [editingJob, setEditingJob] = useState<any | null>(null);
+  const [fileUploading, setFileUploading] = useState(false);
   const [showTour, setShowTour] = useState(false);
   const [tourStep, setTourStep] = useState(0);
   const getWriteConfig = () => {
@@ -374,6 +376,48 @@ export default function App() {
       await fetchData(false);
     } catch (e: any) {
       setErrorMessage(formatApiError(e, `Failed to delete job '${jobId}'.`));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      setFileUploading(true);
+      setLoading(true);
+      setErrorMessage(null);
+      const res = await axios.post(`${API_BASE}/jobs/upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      addToast(res.data?.message || 'Jobs uploaded successfully!');
+      await runRecalculation();
+      await fetchData(false);
+    } catch (e: any) {
+      setErrorMessage(formatApiError(e, 'Failed to upload jobs file.'));
+    } finally {
+      setFileUploading(false);
+      setLoading(false);
+      if (event.target) event.target.value = '';
+    }
+  };
+
+  const handleUpdateJob = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingJob) return;
+    try {
+      setLoading(true);
+      setErrorMessage(null);
+      await axios.put(`${API_BASE}/jobs/${encodeURIComponent(editingJob.job_id)}`, editingJob, getWriteConfig());
+      addToast(`Job ${editingJob.job_id} updated successfully.`);
+      setEditingJob(null);
+      await runRecalculation();
+      await fetchData(false);
+    } catch (e: any) {
+      setErrorMessage(formatApiError(e, `Failed to update job ${editingJob.job_id}.`));
     } finally {
       setLoading(false);
     }
@@ -731,7 +775,7 @@ export default function App() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#1e293b', padding: '6px 14px', borderRadius: '8px', border: '1px solid #334155' }}>
             <div>
               <span style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', display: 'block' }}>Sim Clock</span>
-              <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#38bdf8' }}>{currentSim} min</div>
+              <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#38bdf8' }}>{currentSim} hrs</div>
             </div>
             <button 
               onClick={() => advanceSim(5)} 
@@ -816,6 +860,21 @@ export default function App() {
             >
               <Download size={13} /> Export CSV
             </button>
+            <label 
+              style={{ display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: '#0284c7', border: 'none', color: '#fff', padding: '7px 12px', borderRadius: '6px', cursor: fileUploading ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: '12px' }}
+              title="Batch upload jobs from Excel (.xlsx) or CSV file"
+            >
+              <Upload size={14} /> {fileUploading ? 'Uploading...' : 'Upload Excel/CSV'}
+              <input type="file" accept=".xlsx,.xls,.csv" onChange={handleFileUpload} disabled={fileUploading} style={{ display: 'none' }} />
+            </label>
+            <a 
+              href={`${API_BASE}/jobs/template/download`}
+              download="job_import_template.xlsx"
+              style={{ display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: '#334155', border: 'none', color: '#cbd5e1', padding: '7px 10px', borderRadius: '6px', textDecoration: 'none', fontSize: '12px', fontWeight: 500 }}
+              title="Download sample Excel template"
+            >
+              <Download size={13} /> Template
+            </a>
             <button 
               onClick={() => setShowAddJob(true)}
               style={{ display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: '#059669', border: 'none', color: '#fff', padding: '7px 14px', borderRadius: '6px', cursor: 'pointer', fontWeight: 700, fontSize: '12px' }}
@@ -1152,7 +1211,25 @@ export default function App() {
                     </td>
                     <td style={{ padding: '9px 12px', textAlign: 'center' }}>
                       <button
-                        onClick={() => deleteJob(item.job.job_id)}
+                          onClick={() => setEditingJob(JSON.parse(JSON.stringify(item.job)))}
+                          disabled={item.lifecycleStatus === 'IN_PROGRESS'}
+                          title={`Edit job ${item.job.job_id}`}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: item.lifecycleStatus === 'IN_PROGRESS' ? '#475569' : '#38bdf8',
+                            cursor: item.lifecycleStatus === 'IN_PROGRESS' ? 'not-allowed' : 'pointer',
+                            padding: '4px',
+                            marginRight: '6px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          <Edit3 size={14} />
+                        </button>
+                        <button
+                          onClick={() => deleteJob(item.job.job_id)}
                         disabled={item.lifecycleStatus === 'IN_PROGRESS'}
                         title={item.lifecycleStatus === 'IN_PROGRESS' ? 'Cannot delete while actively running' : `Delete job ${item.job.job_id}`}
                         style={{
@@ -1361,6 +1438,7 @@ export default function App() {
                 style={{ flex: 1, backgroundColor: '#0f172a', border: '1px solid #475569', color: '#fff', padding: '7px 10px', borderRadius: '6px', fontSize: '12px' }}
               >
                 <option value="CPSAT">Google OR-Tools CP-SAT (Optimal/Exact)</option>
+                <option value="PALMER">Palmer's Heuristic Algorithm (Slope Index)</option>
                 <option value="EPN">PyTorch Pointer Network (Liu et al. IEEE TASE 2024)</option>
                 <option value="EDD">EDD (Earliest Due Date)</option>
                 <option value="SPT">SPT (Shortest Processing Time)</option>
@@ -1620,10 +1698,10 @@ export default function App() {
             <thead>
               <tr style={{ borderBottom: '1px solid #475569', color: '#94a3b8' }}>
                 <th style={{ padding: '8px 10px' }}>Algorithm</th>
-                <th style={{ padding: '8px 10px' }}>Makespan (min)</th>
-                <th style={{ padding: '8px 10px' }}>Total Tardiness (min)</th>
+                <th style={{ padding: '8px 10px' }}>Makespan (hrs)</th>
+                <th style={{ padding: '8px 10px' }}>Total Tardiness (hrs)</th>
                 <th style={{ padding: '8px 10px' }}>Late Jobs</th>
-                <th style={{ padding: '8px 10px' }}>Avg Wait Time (min)</th>
+                <th style={{ padding: '8px 10px' }}>Avg Wait Time (hrs)</th>
                 <th style={{ padding: '8px 10px' }}>Avg Machine Util</th>
                 <th style={{ padding: '8px 10px' }}>Compute Latency</th>
               </tr>
@@ -2001,6 +2079,101 @@ export default function App() {
         ))}
       </div>
 
+      {/* Edit Job Modal */}
+      {editingJob && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }}>
+          <div style={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '10px', width: '90%', maxWidth: '650px', maxHeight: '90vh', overflowY: 'auto', padding: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Edit3 size={18} color="#38bdf8" /> Edit Job Details: {editingJob.job_id}
+              </h3>
+              <button onClick={() => setEditingJob(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateJob}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Job / Product Name</label>
+                  <input 
+                    type="text" 
+                    value={editingJob.name} 
+                    onChange={e => setEditingJob({ ...editingJob, name: e.target.value })}
+                    style={{ width: '100%', padding: '8px', backgroundColor: '#0f172a', border: '1px solid #334155', color: '#fff', borderRadius: '4px', fontSize: '12px', boxSizing: 'border-box' }}
+                    required 
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Due Date / Due Time (hrs)</label>
+                  <input 
+                    type="number" 
+                    value={editingJob.due_date ?? ''} 
+                    onChange={e => setEditingJob({ ...editingJob, due_date: e.target.value ? parseFloat(e.target.value) : null })}
+                    style={{ width: '100%', padding: '8px', backgroundColor: '#0f172a', border: '1px solid #334155', color: '#fff', borderRadius: '4px', fontSize: '12px', boxSizing: 'border-box' }}
+                    required 
+                  />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '14px' }}>
+                <label style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginBottom: '6px' }}>Operations & Machine Durations (hrs):</label>
+                {editingJob.operations.map((op: any, idx: number) => (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px', backgroundColor: '#0f172a', padding: '8px', borderRadius: '6px' }}>
+                    <span style={{ fontSize: '12px', color: '#38bdf8', minWidth: '40px' }}>Seq {op.sequence}:</span>
+                    <input 
+                      type="text" 
+                      value={op.name}
+                      onChange={e => {
+                        const updated = [...editingJob.operations];
+                        updated[idx].name = e.target.value;
+                        setEditingJob({ ...editingJob, operations: updated });
+                      }}
+                      placeholder="Stage Name"
+                      style={{ flex: 1, padding: '6px', backgroundColor: '#1e293b', border: '1px solid #334155', color: '#fff', borderRadius: '4px', fontSize: '11px' }}
+                    />
+                    <select 
+                      value={op.machine_id}
+                      onChange={e => {
+                        const updated = [...editingJob.operations];
+                        updated[idx].machine_id = e.target.value;
+                        setEditingJob({ ...editingJob, operations: updated });
+                      }}
+                      style={{ padding: '6px', backgroundColor: '#1e293b', border: '1px solid #334155', color: '#cbd5e1', borderRadius: '4px', fontSize: '11px' }}
+                    >
+                      {machines.map(m => (
+                        <option key={m.machine_id} value={m.machine_id}>{m.machine_id} - {m.name}</option>
+                      ))}
+                    </select>
+                    <input 
+                      type="number" 
+                      value={op.duration}
+                      onChange={e => {
+                        const updated = [...editingJob.operations];
+                        updated[idx].duration = parseFloat(e.target.value) || 0;
+                        setEditingJob({ ...editingJob, operations: updated });
+                      }}
+                      style={{ width: '60px', padding: '6px', backgroundColor: '#1e293b', border: '1px solid #334155', color: '#fff', borderRadius: '4px', fontSize: '11px', textAlign: 'center' }}
+                      min="1"
+                    />
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>hrs</span>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
+                <button type="button" onClick={() => setEditingJob(null)} style={{ padding: '8px 16px', backgroundColor: '#475569', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>
+                  Cancel
+                </button>
+                <button type="submit" disabled={loading} style={{ padding: '8px 18px', backgroundColor: '#38bdf8', color: '#0f172a', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}>
+                  {loading ? 'Saving...' : 'Save & Re-Schedule'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Interactive System Guide / Feature Walkthrough Modal */}
       {showTour && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: '20px' }}>
@@ -2060,7 +2233,7 @@ export default function App() {
                   3. Virtual Clock &amp; Auto-Play Simulation
                 </div>
                 <p style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: '155%', marginBottom: '12px' }}>
-                  Use the <strong>+5 min, +15 min, +30 min, and +60 min</strong> buttons to advance virtual production time.
+                  Use the <strong>+5 hrs, +15 min, +30 min, and +60 min</strong> buttons to advance virtual production time.
                   As time advances, running operations complete, finished machines turn back to IDLE, and next stages automatically dispatch.
                   Or click <strong>"Auto Play" (1x, 2x, 5x)</strong> to watch the entire factory run live hands-free!
                 </p>

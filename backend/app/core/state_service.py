@@ -296,6 +296,23 @@ class ProductionStateService:
                                 f"Valid machines: {sorted(known_machines)}"
                             )
 
+                # Auto-calculate priority based on due date and processing slack if not explicitly set
+                total_proc = sum(op.duration for op in job.operations)
+                if job.priority is not None and job.priority != 3:
+                    calc_prio = job.priority
+                elif job.due_date is not None and job.due_date > 0:
+                    slack = job.due_date - (job.arrival_time + total_proc)
+                    if slack <= 5.0:
+                        calc_prio = 1
+                    elif slack <= 20.0:
+                        calc_prio = 2
+                    else:
+                        calc_prio = 3
+                else:
+                    calc_prio = job.priority or 3
+
+                job.priority = calc_prio
+
                 job_rec = JobModel(
                     job_id=job.job_id,
                     name=job.name,
@@ -303,7 +320,7 @@ class ProductionStateService:
                     quantity=job.quantity,
                     arrival_time=job.arrival_time,
                     due_date=float(job.due_date) if (job.due_date is not None and job.due_date > 0) else -1.0,
-                    priority=job.priority,
+                    priority=calc_prio,
                     status=job.status.value,
                     operations_json=[op.dict() for op in job.operations]
                 )
@@ -389,6 +406,83 @@ class ProductionStateService:
                     "remaining_jobs_count": remaining_jobs_count,
                     "schedule": fresh_schedule
                 }
+            finally:
+                db.close()
+
+    @staticmethod
+    def update_job(job_id: str, job: Job) -> Job:
+        """
+        Updates an existing job's details (due date, priority, name, product_type, operations).
+        Rejects update if any operation of the job is currently RUNNING on a machine.
+        """
+        with ProductionStateService._lock:
+            db = SessionLocal()
+            try:
+                job_rec = db.query(JobModel).filter(JobModel.job_id == job_id).first()
+                if not job_rec:
+                    raise ValueError(f"Job '{job_id}' does not exist.")
+
+                busy_machine = db.query(MachineModel).filter(
+                    MachineModel.status == MachineStatus.BUSY.value,
+                    MachineModel.current_job_id == job_id
+                ).first()
+                if busy_machine:
+                    raise ValueError(
+                        f"Cannot edit job '{job_id}': Operation is actively RUNNING on {busy_machine.machine_id}."
+                    )
+
+                if job.due_date is not None and job.due_date <= 0:
+                    raise ValueError("Job due_date must be greater than zero when provided.")
+
+                known_machines = {m.machine_id for m in db.query(MachineModel).all()}
+                seen_sequences = set()
+                prev_seq = 0
+                for op in job.operations:
+                    if op.sequence <= 0 or op.sequence in seen_sequences or op.sequence <= prev_seq:
+                        raise ValueError(
+                            f"Invalid or cyclic operation sequence '{op.sequence}' in job '{job.job_id}'."
+                        )
+                    seen_sequences.add(op.sequence)
+                    prev_seq = op.sequence
+                    if op.duration <= 0:
+                        raise ValueError(f"Operation {op.sequence} duration must be > 0. Received: {op.duration}")
+                    if known_machines and op.machine_id not in known_machines:
+                        raise ValueError(f"Invalid machine '{op.machine_id}'. Valid: {sorted(known_machines)}")
+
+                # Automatic priority calculation based on slack if slack exists
+                total_proc = sum(op.duration for op in job.operations)
+                if job.due_date is not None and job.due_date > 0:
+                    slack = job.due_date - (job.arrival_time + total_proc)
+                    if slack <= 5.0:
+                        calc_prio = 1
+                    elif slack <= 20.0:
+                        calc_prio = 2
+                    else:
+                        calc_prio = 3
+                else:
+                    calc_prio = job.priority or 3
+
+                job_rec.name = job.name
+                job_rec.product_type = job.product_type
+                job_rec.quantity = job.quantity
+                job_rec.arrival_time = job.arrival_time
+                job_rec.due_date = float(job.due_date) if (job.due_date is not None and job.due_date > 0) else -1.0
+                job_rec.priority = calc_prio
+                job_rec.operations_json = [op.dict() for op in job.operations]
+
+                ProductionStateService.increment_state_version(db)
+                db.commit()
+
+                # Recalculate schedule
+                try:
+                    sim_state = db.query(SimulationStateModel).filter(SimulationStateModel.id == 1).first()
+                    curr_sim_time = float(sim_state.sim_time) if sim_state and sim_state.sim_time is not None else 0.0
+                    ProductionStateService.recalculate_schedule(sim_time=curr_sim_time, algorithm="CPSAT")
+                except Exception:
+                    pass
+
+                job.priority = calc_prio
+                return job
             finally:
                 db.close()
 

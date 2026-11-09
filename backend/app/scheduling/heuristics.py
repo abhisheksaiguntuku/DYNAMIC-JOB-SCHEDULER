@@ -46,6 +46,15 @@ class DispatchHeuristicScheduler:
             else:
                 machine_free_time[m.machine_id] = current_time
                 
+        # Pre-compute Palmer slopes for PALMER dispatching rule
+        palmer_slope: Dict[str, float] = {}
+        if rule.upper() == "PALMER":
+            for j in jobs:
+                m_count = len(j.operations)
+                # Palmer slope formula: sum_{i=1}^m (2*i - m - 1) * p_{j,i}
+                # Descending slope index order = earlier processing
+                slope = sum((2 * (idx + 1) - m_count - 1) * op.duration for idx, op in enumerate(j.operations))
+                palmer_slope[j.job_id] = slope
         # Job state tracking
         job_next_op_idx: Dict[str, int] = {}
         job_ready_time: Dict[str, float] = {}
@@ -188,6 +197,11 @@ class DispatchHeuristicScheduler:
                     else:
                         score = (1.5 * waiting_so_far) - (0.5 * op.duration) + (0.01 * prio)
                     return (in_active_frontier, -score, -prio, est_start, j.job_id)
+                elif r_upper == "PALMER":
+                    # Palmer's Slope Heuristic: Sort descending by slope (negated for ascending sort)
+                    # Tie-break by arrival time, duration, and job_id
+                    slope = palmer_slope.get(j.job_id, 0.0)
+                    return (in_active_frontier, -slope, j.arrival_time, op.duration, est_start, j.job_id)
                 else:
                     return (in_active_frontier, est_start, -prio, j.arrival_time, j.job_id)
 

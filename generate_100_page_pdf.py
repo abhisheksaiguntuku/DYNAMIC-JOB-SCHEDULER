@@ -374,3 +374,4 @@ def build_100_page_master_pdf(output_filename="DYNAMIC_JOB_SHOP_SCHEDULER_COMPRE
 if __name__ == "__main__":
     out_file = sys.argv[1] if len(sys.argv) > 1 else "DYNAMIC_JOB_SHOP_SCHEDULER_COMPREHENSIVE_MASTER_DOCUMENT.pdf"
     build_100_page_master_pdf(out_file)
+
