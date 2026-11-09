@@ -1210,15 +1210,15 @@ export default function App() {
                       )}
                     </td>
                     <td style={{ padding: '9px 12px', textAlign: 'center' }}>
-                      <button
+                      {item.lifecycleStatus !== 'COMPLETED' && item.lifecycleStatus !== 'IN_PROGRESS' && (
+                        <button
                           onClick={() => setEditingJob(JSON.parse(JSON.stringify(item.job)))}
-                          disabled={item.lifecycleStatus === 'IN_PROGRESS'}
-                          title={`Edit job ${item.job.job_id}`}
+                          title={`Edit unstarted job ${item.job.job_id}`}
                           style={{
                             background: 'none',
                             border: 'none',
-                            color: item.lifecycleStatus === 'IN_PROGRESS' ? '#475569' : '#38bdf8',
-                            cursor: item.lifecycleStatus === 'IN_PROGRESS' ? 'not-allowed' : 'pointer',
+                            color: '#38bdf8',
+                            cursor: 'pointer',
                             padding: '4px',
                             marginRight: '6px',
                             display: 'inline-flex',
@@ -1228,6 +1228,7 @@ export default function App() {
                         >
                           <Edit3 size={14} />
                         </button>
+                      )}
                         <button
                           onClick={() => deleteJob(item.job.job_id)}
                         disabled={item.lifecycleStatus === 'IN_PROGRESS'}
