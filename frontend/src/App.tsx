@@ -782,30 +782,30 @@ export default function App() {
               disabled={loading}
               style={{ display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: loading ? '#1e3a8a' : '#2563eb', border: 'none', color: '#fff', padding: '7px 12px', borderRadius: '6px', cursor: loading ? 'wait' : 'pointer', fontWeight: 600, fontSize: '12px' }}
             >
-              <FastForward size={14} /> +5 min
+              <FastForward size={14} /> +5 hrs
             </button>
             <button 
               onClick={() => advanceSim(15)} 
               disabled={loading}
               style={{ display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: loading ? '#1e3a8a' : '#1d4ed8', border: 'none', color: '#fff', padding: '7px 12px', borderRadius: '6px', cursor: loading ? 'wait' : 'pointer', fontWeight: 600, fontSize: '12px' }}
             >
-              <FastForward size={14} /> +15 min
+              <FastForward size={14} /> +15 hrs
             </button>
             <button 
               onClick={() => advanceSim(30)} 
               disabled={loading}
-              title="Fast forward simulation by 30 minutes"
+              title="Fast forward simulation by 30 hours"
               style={{ display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: loading ? '#1e3a8a' : '#0284c7', border: 'none', color: '#fff', padding: '7px 12px', borderRadius: '6px', cursor: loading ? 'wait' : 'pointer', fontWeight: 600, fontSize: '12px' }}
             >
-              <FastForward size={14} /> +30 min
+              <FastForward size={14} /> +30 hrs
             </button>
             <button 
               onClick={() => advanceSim(60)} 
               disabled={loading}
-              title="Fast forward simulation by 60 minutes (1 hour)"
+              title="Fast forward simulation by 60 hours"
               style={{ display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: loading ? '#1e3a8a' : '#0369a1', border: 'none', color: '#fff', padding: '7px 12px', borderRadius: '6px', cursor: loading ? 'wait' : 'pointer', fontWeight: 600, fontSize: '12px' }}
             >
-              <FastForward size={14} /> +60 min
+              <FastForward size={14} /> +60 hrs
             </button>
 
             {/* Auto Play Simulation */}
@@ -931,7 +931,7 @@ export default function App() {
                 boxShadow: isRunning ? '0 0 8px #10b981' : '0 0 8px #f59e0b'
               }} />
               <span style={{ fontSize: '12px', color: '#cbd5e1' }}>
-                <strong>Engine State:</strong> {isRunning ? 'Active Simulation' : 'Simulation Paused'} (Clock: {simTime} min, Version: v{simStatus?.state_version ?? 1})
+                <strong>Engine State:</strong> {isRunning ? 'Active Simulation' : 'Simulation Paused'} (Clock: {simTime} hrs, Version: v{simStatus?.state_version ?? 1})
               </span>
               <span style={{ 
                 fontSize: '11px', 
@@ -985,11 +985,11 @@ export default function App() {
         <div className="responsive-metrics-grid">
           <div style={{ backgroundColor: '#1e293b', padding: '14px', borderRadius: '8px', borderLeft: '4px solid #38bdf8' }}>
             <span style={{ fontSize: '11px', color: '#94a3b8' }}>Makespan (Cmax)</span>
-            <div style={{ fontSize: '20px', fontWeight: 'bold', marginTop: '2px' }}>{schedule.metrics.makespan} min</div>
+            <div style={{ fontSize: '20px', fontWeight: 'bold', marginTop: '2px' }}>{schedule.metrics.makespan} hrs</div>
           </div>
           <div style={{ backgroundColor: '#1e293b', padding: '14px', borderRadius: '8px', borderLeft: '4px solid #f43f5e' }}>
             <span style={{ fontSize: '11px', color: '#94a3b8' }}>Total Tardiness</span>
-            <div style={{ fontSize: '20px', fontWeight: 'bold', marginTop: '2px', color: schedule.metrics.total_tardiness > 0 ? '#f87171' : '#f8fafc' }}>{schedule.metrics.total_tardiness} min</div>
+            <div style={{ fontSize: '20px', fontWeight: 'bold', marginTop: '2px', color: schedule.metrics.total_tardiness > 0 ? '#f87171' : '#f8fafc' }}>{schedule.metrics.total_tardiness} hrs</div>
           </div>
           <div style={{ backgroundColor: '#1e293b', padding: '14px', borderRadius: '8px', borderLeft: '4px solid #eab308' }}>
             <span style={{ fontSize: '11px', color: '#94a3b8' }}>Late Jobs</span>
@@ -997,12 +997,12 @@ export default function App() {
           </div>
           <div style={{ backgroundColor: '#1e293b', padding: '14px', borderRadius: '8px', borderLeft: '4px solid #10b981' }}>
             <span style={{ fontSize: '11px', color: '#94a3b8' }}>Avg Waiting Time</span>
-            <div style={{ fontSize: '20px', fontWeight: 'bold', marginTop: '2px' }}>{schedule.metrics.avg_waiting_time} min</div>
+            <div style={{ fontSize: '20px', fontWeight: 'bold', marginTop: '2px' }}>{schedule.metrics.avg_waiting_time} hrs</div>
           </div>
           <div style={{ backgroundColor: '#1e293b', padding: '14px', borderRadius: '8px', borderLeft: '4px solid #8b5cf6' }}>
             <span style={{ fontSize: '11px', color: '#94a3b8' }}>Planned Schedule Utilization</span>
             <div style={{ fontSize: '20px', fontWeight: 'bold', marginTop: '2px' }}>{schedule.metrics.avg_utilization}%</div>
-            <span style={{ fontSize: '10px', color: '#64748b' }}>denom: Makespan ({schedule.metrics.makespan}m)</span>
+            <span style={{ fontSize: '10px', color: '#64748b' }}>denom: Makespan ({schedule.metrics.makespan} hrs)</span>
           </div>
           <div style={{ backgroundColor: '#1e293b', padding: '14px', borderRadius: '8px', borderLeft: '4px solid #06b6d4' }}>
             <span style={{ fontSize: '11px', color: '#94a3b8' }}>Solver Status / Latency</span>
@@ -1181,21 +1181,21 @@ export default function App() {
                       </div>
                     </td>
                     <td style={{ padding: '9px 12px', color: '#cbd5e1' }}>
-                      {item.actualOrSimStart !== null ? `${item.actualOrSimStart}m` : '-'}
+                      {item.actualOrSimStart !== null ? `${item.actualOrSimStart} hrs` : '-'}
                     </td>
                     <td style={{ padding: '9px 12px', color: item.isAtRisk ? '#f43f5e' : '#cbd5e1', fontWeight: item.isAtRisk ? 700 : 400 }}>
-                      {item.estimatedCompletion !== null ? `${item.estimatedCompletion}m` : '-'}
+                      {item.estimatedCompletion !== null ? `${item.estimatedCompletion} hrs` : '-'}
                     </td>
                     <td style={{ padding: '9px 12px', color: '#cbd5e1' }}>
-                      {item.dueTime}m
+                      {item.dueTime} hrs
                     </td>
                     <td style={{ padding: '9px 12px', color: '#cbd5e1' }}>
-                      {item.remainingProcessing > 0 ? `${item.remainingProcessing}m` : '0m'}
+                      {item.remainingProcessing > 0 ? `${item.remainingProcessing} hrs` : '0 hrs'}
                     </td>
                     <td style={{ padding: '9px 12px' }}>
                       {item.isLate ? (
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', color: '#f43f5e', fontSize: '11px', fontWeight: 700 }}>
-                          <AlertTriangle size={12} /> Late ({round1(currentSim - item.dueTime)}m)
+                          <AlertTriangle size={12} /> Late ({round1(currentSim - item.dueTime)} hrs)
                         </span>
                       ) : item.isAtRisk ? (
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', color: '#f97316', fontSize: '11px', fontWeight: 600 }}>
@@ -1772,8 +1772,8 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Product Type, Priority, Due Date */}
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+              {/* Product Type & Due Date (Auto-Calculated Priority) */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
                 <div>
                   <label style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Product Type</label>
                   <input 
@@ -1784,23 +1784,7 @@ export default function App() {
                   />
                 </div>
                 <div>
-                  <label style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
-                    Priority (Urgency Level) *
-                  </label>
-                  <select
-                    value={newJob.priority}
-                    onChange={e => setNewJob({...newJob, priority: parseInt(e.target.value) || 3})}
-                    style={{ width: '100%', padding: '8px', backgroundColor: '#0f172a', border: '1px solid #334155', color: '#fff', borderRadius: '4px', fontSize: '12px', boxSizing: 'border-box' }}
-                  >
-                    <option value={5}>5 - Critical / Urgent (VIP)</option>
-                    <option value={4}>4 - High Urgency</option>
-                    <option value={3}>3 - Normal / Standard (Default)</option>
-                    <option value={2}>2 - Low Urgency</option>
-                    <option value={1}>1 - Routine / Fill-in</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Due Date (mins) *</label>
+                  <label style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Due Date / Due Time (hrs) *</label>
                   <input 
                     type="number" 
                     min={1}
@@ -1809,6 +1793,12 @@ export default function App() {
                     style={{ width: '100%', padding: '8px', backgroundColor: '#0f172a', border: '1px solid #334155', color: '#fff', borderRadius: '4px', fontSize: '12px', boxSizing: 'border-box' }}
                     required 
                   />
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Priority Level</label>
+                  <div style={{ width: '100%', padding: '8px 10px', backgroundColor: '#0f172a', border: '1px solid #0284c7', color: '#38bdf8', borderRadius: '4px', fontSize: '11px', fontWeight: 600, boxSizing: 'border-box' }}>
+                    Auto-Determined by Due Date Slack
+                  </div>
                 </div>
               </div>
 
@@ -1904,7 +1894,7 @@ export default function App() {
                           }}
                           required
                         />
-                        <span style={{ fontSize: '10px', color: '#64748b' }}>min</span>
+                        <span style={{ fontSize: '10px', color: '#64748b' }}>hrs</span>
                       </div>
 
                       {/* Remove Op */}
